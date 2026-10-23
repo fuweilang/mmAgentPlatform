@@ -1,0 +1,30 @@
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import { fileURLToPath, URL } from 'node:url';
+
+export default defineConfig({
+  plugins: [vue()],
+  base: '/',
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@mammoth/shared': fileURLToPath(new URL('../../packages/shared/src/index.ts', import.meta.url)),
+    },
+  },
+  server: {
+    host: '0.0.0.0',
+    port: 5202,
+    strictPort: true,
+    hmr: {
+      protocol: 'ws',
+      clientPort: 5201,
+    },
+    proxy: {
+      '/middle/api': {
+        target: 'http://127.0.0.1:3100',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/middle\/api/, '/api'),
+      },
+    },
+  },
+});

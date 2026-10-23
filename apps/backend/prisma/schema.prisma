@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantType {
+  PLATFORM
+  AGENCY
+  ENTERPRISE
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model User {
+  id               String      @id @default(cuid())
+  phone            String      @unique
+  email            String?     @unique
+  passwordHash     String      @map("password_hash")
+  name             String
+  isPlatformAdmin  Boolean     @default(false) @map("is_platform_admin")
+  status           String      @default("active")
+  peecaiUserId     String?     @unique @map("peecai_user_id")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  memberships      OrgMember[]
+
+  @@map("user")
+}
+
+model Tenant {
+  id        String      @id @default(cuid())
+  name      String
+  slug      String      @unique
+  type      TenantType
+  status    String      @default("active")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  members   OrgMember[]
+  parents   OrgTree[]   @relation("ChildTenant")
+  children  OrgTree[]   @relation("ParentTenant")
+
+  @@map("tenant")
+}
+
+model OrgTree {
+  id        String   @id @default(cuid())
+  parentId  String   @map("parent_id")
+  childId   String   @map("child_id")
+  parent    Tenant   @relation("ParentTenant", fields: [parentId], references: [id], onDelete: Cascade)
+  child     Tenant   @relation("ChildTenant", fields: [childId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([parentId, childId])
+  @@index([parentId])
+  @@index([childId])
+  @@map("org_tree")
+}
+
+model OrgMember {
+  id        String     @id @default(cuid())
+  userId    String     @map("user_id")
+  tenantId  String     @map("tenant_id")
+  role      MemberRole
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+  @@map("org_member")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String?  @map("tenant_id")
+  userId    String?  @map("user_id")
+  action    String
+  ip        String?
+  meta      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@index([userId])
+  @@map("audit_log")
+}

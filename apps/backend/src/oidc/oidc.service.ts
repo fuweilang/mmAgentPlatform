@@ -1,0 +1,152 @@
+import { createHash, randomBytes } from 'crypto';
+import { Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SignJWT } from 'jose';
+import type { JWK } from 'jose';
+import { User } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { loadOidcKeys, OIDC_KID } from './oidc.keys';
+import { saveCode, takeCode } from './oidc.store';
+
+const CLIENT_ID = 'mammoth-octop';
+
+@Injectable()
+export class OidcService implements OnModuleInit {
+  private privateKey!: CryptoKey;
+  private publicJwk!: JWK;
+
+  constructor(
+    private config: ConfigService,
+    private prisma: PrismaService,
+  ) {}
+
+  async onModuleInit() {
+    const keys = await loadOidcKeys();
+    this.privateKey = keys.privateKey;
+    this.publicJwk = keys.publicJwk;
+  }
+
+  issuer() {
+    return this.config.get<string>('OIDC_ISSUER') ?? 'http://127.0.0.1:5201/middle/api/oidc';
+  }
+
+  clientId() {
+    return this.config.get<string>('OIDC_CLIENT_ID') ?? CLIENT_ID;
+  }
+
+  discovery() {
+    const iss = this.issuer();
+    return {
+      issuer: iss,
+      authorization_endpoint: `${iss}/authorize`,
+      token_endpoint: `${iss}/token`,
+      userinfo_endpoint: `${iss}/userinfo`,
+      jwks_uri: `${iss}/jwks`,
+      response_types_supported: ['code'],
+      grant_types_supported: ['authorization_code'],
+      subject_types_supported: ['public'],
+      id_token_signing_alg_values_supported: ['RS256'],
+      token_endpoint_auth_methods_supported: ['none'],
+      code_challenge_methods_supported: ['S256'],
+      scopes_supported: ['openid', 'profile', 'email'],
+    };
+  }
+
+  jwks() {
+    return { keys: [this.publicJwk] };
+  }
+
+  isAllowedRedirect(uri: string) {
+    try {
+      const u = new URL(uri);
+      return (
+        u.pathname === '/api/auth/oidc/callback' ||
+        u.pathname === '/agent/api/auth/oidc/callback'
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  loginRedirect(authorizeUrl: string, hostname: string, protocol: string) {
+    const pub =
+      this.config.get<string>('PUBLIC_ORIGIN') ?? `${protocol}://${hostname}:5201`;
+    return `${pub.replace(/\/$/, '')}/login?next=${encodeURIComponent(authorizeUrl)}`;
+  }
+
+  issueCode(user: User, params: {
+    nonce: string;
+    clientId: string;
+    redirectUri: string;
+    codeChallenge: string;
+  }) {
+    const code = randomBytes(24).toString('hex');
+    saveCode(code, {
+      sub: user.id,
+      nonce: params.nonce,
+      clientId: params.clientId,
+      redirectUri: params.redirectUri,
+      codeChallenge: params.codeChallenge,
+      exp: Date.now() + 5 * 60 * 1000,
+    });
+    return code;
+  }
+
+  async exchange(input: {
+    grant_type?: string;
+    code?: string;
+    redirect_uri?: string;
+    client_id?: string;
+    code_verifier?: string;
+  }) {
+    if (input.grant_type !== 'authorization_code') throw new UnauthorizedException('unsupported_grant');
+    if (!input.code || !input.redirect_uri || !input.client_id || !input.code_verifier) {
+      throw new UnauthorizedException('invalid_request');
+    }
+    if (input.client_id !== this.clientId()) throw new UnauthorizedException('invalid_client');
+    const row = takeCode(input.code);
+    if (!row || row.clientId !== input.client_id || row.redirectUri !== input.redirect_uri) {
+      throw new UnauthorizedException('invalid_grant');
+    }
+    const challenge = createHash('sha256').update(input.code_verifier).digest('base64url');
+    if (challenge !== row.codeChallenge) throw new UnauthorizedException('invalid_grant');
+
+    const user = await this.prisma.user.findUnique({ where: { id: row.sub } });
+    if (!user || user.status !== 'active') throw new UnauthorizedException('invalid_grant');
+
+    const now = Math.floor(Date.now() / 1000);
+    const idToken = await new SignJWT({
+      nonce: row.nonce,
+      name: user.name,
+      preferred_username: user.phone,
+      phone_number: user.phone,
+      email: user.email ?? undefined,
+    })
+      .setProtectedHeader({ alg: 'RS256', kid: OIDC_KID })
+      .setIssuer(this.issuer())
+      .setAudience(this.clientId())
+      .setSubject(user.id)
+      .setIssuedAt(now)
+      .setExpirationTime(now + 300)
+      .sign(this.privateKey);
+
+    return {
+      access_token: idToken,
+      token_type: 'Bearer',
+      expires_in: 300,
+      id_token: idToken,
+    };
+  }
+
+  async userinfo(sub: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: sub } });
+    if (!user) throw new UnauthorizedException('invalid_token');
+    return {
+      sub: user.id,
+      name: user.name,
+      preferred_username: user.phone,
+      phone_number: user.phone,
+      email: user.email ?? undefined,
+    };
+  }
+}

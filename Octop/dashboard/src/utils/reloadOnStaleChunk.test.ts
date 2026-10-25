@@ -126,6 +126,10 @@ describe("tryReloadOnStaleChunk", () => {
     expect(mod.tryReloadOnStaleChunk(err)).toBe(false);
     expect(reload).not.toHaveBeenCalled();
     expect(sessionStorage.getItem("octop:chunk-reload")).toBeNull();
+
+    // A second asset error on the same post-reload document must not loop.
+    expect(mod.tryReloadOnStaleChunk(err)).toBe(true);
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it("ignores concurrent chunk errors without clearing the one-shot flag", async () => {
@@ -177,6 +181,14 @@ describe("index.html boot recover", () => {
     expect(html).toContain("isStylesheetLink");
     expect(html).toContain("modulepreload");
     expect(html).not.toMatch(/<script type="module">[\s\S]*octop:chunk-reload/);
+    const recoverFn = html.slice(
+      html.indexOf("function recover()"),
+      html.indexOf("var reload = function"),
+    );
+    expect(recoverFn.indexOf("recovering = true")).toBeGreaterThan(-1);
+    expect(recoverFn.indexOf("recovering = true")).toBeLessThan(
+      recoverFn.indexOf("sessionStorage.getItem"),
+    );
   });
 
   it("does not recover on arbitrary LINK asset errors", () => {

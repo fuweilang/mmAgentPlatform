@@ -29,5 +29,7 @@ def test_other_static_files_leave_cache_unset() -> None:
 
 def test_only_hashed_assets_skip_the_spa_fallback() -> None:
     assert is_dashboard_asset_path("assets/index.abc123.js") is True
+    assert is_dashboard_asset_path("agent/assets/index.abc123.js") is True
     assert is_dashboard_asset_path("chat") is False
+    assert is_dashboard_asset_path("agent/chat") is False
     assert is_dashboard_asset_path("") is False

@@ -64,7 +64,9 @@ async function consoleJson<T>(path: string, init: RequestInit = {}): Promise<T |
     if (init.body && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
     }
-    const res = await fetch(`/console/api${path}`, {
+    const { ensurePlatformOrigin, platformUrl } = await import("../../utils/mammothSso");
+    const origin = await ensurePlatformOrigin();
+    const res = await fetch(platformUrl(`/console/api${path}`, origin), {
       ...init,
       headers,
       credentials: "include",

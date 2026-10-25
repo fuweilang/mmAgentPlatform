@@ -69,6 +69,10 @@ export function tryReloadOnStaleChunk(error: unknown): boolean {
   if (reloadScheduled) return true;
   if (!isChunkLoadError(error)) return false;
 
+  // Arm first so extra asset errors on this document cannot retrigger a reload
+  // after the one-shot sessionStorage flag is cleared.
+  reloadScheduled = true;
+
   try {
     if (sessionStorage.getItem(RELOAD_FLAG_KEY) === "1") {
       // Already reloaded once this cycle — give up (do not loop).
@@ -80,7 +84,6 @@ export function tryReloadOnStaleChunk(error: unknown): boolean {
     // Private mode / quota — still attempt a single reload without the guard.
   }
 
-  reloadScheduled = true;
   console.warn("[Octop] Stale chunk detected; reloading once.", error);
   void bustServiceWorkerAndReload();
   return true;

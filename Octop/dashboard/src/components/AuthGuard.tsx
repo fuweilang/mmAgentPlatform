@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Spin } from "antd";
+import { Button, Result, Spin } from "antd";
+import { useTranslation } from "react-i18next";
 import { clearAuthToken, getAuthToken } from "../api/request";
 import { authApi, type OctopUser } from "../api/modules/auth";
 import { applyUserLocale } from "../utils/locale";
 import { isNetworkFetchError } from "../utils/networkError";
-import { startMammothSession } from "../utils/mammothSso";
+import {
+  MammothLoginUnreachableError,
+  startMammothSession,
+} from "../utils/mammothSso";
 import { CurrentUserProvider } from "../hooks/useCurrentUser";
 import BootOfflinePanel from "./BootOfflinePanel";
 
@@ -36,6 +40,7 @@ interface AuthGuardProps {
  * on every sidebar click and flash a full-page spinner.
  */
 export default function AuthGuard({ children }: AuthGuardProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
@@ -44,6 +49,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const [authed, setAuthed] = useState(false);
   const [user, setUser] = useState<OctopUser | null>(null);
   const [offline, setOffline] = useState(false);
+  const [loginOrigin, setLoginOrigin] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
@@ -51,6 +57,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
     const check = async () => {
       setOffline(false);
+      setLoginOrigin(null);
       try {
         const status = await authApi.getAuthStatus();
 
@@ -71,7 +78,18 @@ export default function AuthGuard({ children }: AuthGuardProps) {
             // flip ``checking`` off or children would mount and 401→/login.
             // Start the SSO round-trip in place: it knows to come back to the
             // agent and never drops the user on the platform admin console.
-            void startMammothSession();
+            try {
+              await startMammothSession();
+            } catch (error) {
+              if (cancelled) return;
+              if (error instanceof MammothLoginUnreachableError) {
+                setLoginOrigin(error.origin);
+                setChecking(false);
+                return;
+              }
+              setOffline(true);
+              setChecking(false);
+            }
           }
           return;
         }
@@ -96,7 +114,18 @@ export default function AuthGuard({ children }: AuthGuardProps) {
             return;
           }
           setAuthed(false);
-          void startMammothSession();
+          try {
+            await startMammothSession();
+          } catch (error) {
+            if (cancelled) return;
+            if (error instanceof MammothLoginUnreachableError) {
+              setLoginOrigin(error.origin);
+              setChecking(false);
+              return;
+            }
+            setOffline(true);
+            setChecking(false);
+          }
         }
       } catch (err) {
         if (cancelled) return;
@@ -126,6 +155,38 @@ export default function AuthGuard({ children }: AuthGuardProps) {
           setRetryKey((k) => k + 1);
         }}
       />
+    );
+  }
+
+  if (loginOrigin) {
+    return (
+      <div
+        style={{
+          height: "100dvh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--fn-bg-layout)",
+        }}
+      >
+        <Result
+          status="warning"
+          title={t("errors.loginUnreachableTitle")}
+          subTitle={t("errors.loginUnreachableSubtitle", { origin: loginOrigin })}
+          extra={
+            <Button
+              type="primary"
+              onClick={() => {
+                setLoginOrigin(null);
+                setChecking(true);
+                setRetryKey((k) => k + 1);
+              }}
+            >
+              {t("errors.retry")}
+            </Button>
+          }
+        />
+      </div>
     );
   }
 

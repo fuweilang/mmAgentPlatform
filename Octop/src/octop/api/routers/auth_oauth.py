@@ -70,6 +70,22 @@ async def oauth_status(server: Any = Depends(get_server)) -> dict[str, Any]:
     return _service(server).providers_status()
 
 
+@router.post("/mammoth/console-link", summary="Open 中台 as the current desktop user")
+async def mammoth_console_link(
+    user: User = Depends(current_user),
+    server: Any = Depends(get_server),
+) -> dict[str, str]:
+    """Return a Chrome URL that logs into 中台 as this Octop user, not the browser cookie."""
+    try:
+        url = await asyncio.get_running_loop().run_in_executor(
+            None,
+            partial(_service(server).console_handoff_url, user.id),
+        )
+    except ValueError as exc:
+        raise _bad_request(exc) from exc
+    return {"url": url}
+
+
 @router.post("/oauth/start", summary="Begin OAuth login")
 async def oauth_start(
     body: OauthStartBody,

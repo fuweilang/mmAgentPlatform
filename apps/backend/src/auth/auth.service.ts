@@ -164,7 +164,10 @@ export class AuthService {
       { sub: user.id, tenantId, purpose: 'browser-sso', jti },
       { expiresIn: '60s' },
     );
-    return { ticket };
+    return {
+      ticket,
+      next: user.isPlatformAdmin ? '/admin' : '/console/',
+    };
   }
 
   async consumeBrowserSso(ticket: string, res: Response) {

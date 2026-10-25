@@ -1697,7 +1697,11 @@ export default function UsersListPanel() {
       setPendingUserIcon(null);
       // MAMMOTH-PATCH: 建用户时同步调中台 /console/api/auth/provision 开通控制台账号（手机号/企业名打通；应收敛进 mammothConsole.ts） B类-SSO中台胶水
       try {
-        const provisionRes = await fetch("/console/api/auth/provision", {
+        const { ensurePlatformOrigin, platformUrl } = await import(
+          "../../../utils/mammothSso"
+        );
+        const platformOrigin = await ensurePlatformOrigin();
+        const provisionRes = await fetch(platformUrl("/console/api/auth/provision", platformOrigin), {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },

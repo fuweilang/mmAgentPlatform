@@ -181,6 +181,10 @@
         }
         function recover() {
           if (recovering) return;
+          // Arm first. WKWebView (and Firefox) can fire several /assets/ errors
+          // on one load; clearing the one-shot flag then returning left
+          // recovering=false, so the next error called location.reload() again.
+          recovering = true;
           try {
             if (sessionStorage.getItem(KEY) === "1") {
               sessionStorage.removeItem(KEY);
@@ -188,7 +192,6 @@
             }
             sessionStorage.setItem(KEY, "1");
           } catch (e) {}
-          recovering = true;
           var reload = function () {
             location.reload();
           };

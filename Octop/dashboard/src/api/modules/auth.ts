@@ -94,6 +94,8 @@ export interface OauthProviderStatus {
 
 export interface OauthStatus {
   providers: OauthProviderStatus[];
+  /** Set on the installed desktop. Empty means use this page's origin (local gateway). */
+  platform_origin?: string;
 }
 
 /** Public LDAP login availability probe (no auth required). */

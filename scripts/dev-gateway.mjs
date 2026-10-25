@@ -70,7 +70,7 @@ proxy.on('error', (err, req, res) => {
   }
 });
 
-function serveClientDownload(res, pathname) {
+function serveClientDownload(req, res, pathname) {
   const redirect = CLIENT_DOWNLOAD_REDIRECTS[pathname];
   if (redirect) {
     res.writeHead(302, { Location: redirect });
@@ -91,10 +91,22 @@ function serveClientDownload(res, pathname) {
     return true;
   }
   const stat = fs.statSync(file);
+  const etag = `"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
+  const cacheHeaders = {
+    'Cache-Control': 'no-cache',
+    ETag: etag,
+    'Last-Modified': stat.mtime.toUTCString(),
+  };
+  if (req.headers['if-none-match'] === etag) {
+    res.writeHead(304, cacheHeaders);
+    res.end();
+    return true;
+  }
   res.writeHead(200, {
     'Content-Type': 'application/octet-stream',
     'Content-Disposition': `attachment; filename="${name}"`,
     'Content-Length': stat.size,
+    ...cacheHeaders,
   });
   fs.createReadStream(file).pipe(res);
   return true;
@@ -135,7 +147,7 @@ const server = http.createServer((req, res) => {
     res.end();
     return;
   }
-  if (serveClientDownload(res, path)) return;
+  if (serveClientDownload(req, res, path)) return;
   const hit = targetOf(url);
   applyProxy(req, hit);
   proxy.web(req, res, { target: hit.target });

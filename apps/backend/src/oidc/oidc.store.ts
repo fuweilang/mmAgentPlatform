@@ -5,6 +5,7 @@ export type AuthCode = {
   redirectUri: string;
   codeChallenge: string;
   issuer: string;
+  tenantId: string | null;
   exp: number;
 };
 

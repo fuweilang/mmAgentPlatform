@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'crypto';
 import { Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { SignJWT, createLocalJWKSet, jwtVerify } from 'jose';
 import type { JWK, JWTPayload } from 'jose';
@@ -25,6 +26,7 @@ export class OidcService implements OnModuleInit {
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
+    private jwt: JwtService,
   ) {}
 
   async onModuleInit() {
@@ -117,6 +119,7 @@ export class OidcService implements OnModuleInit {
     redirectUri: string;
     codeChallenge: string;
     issuer: string;
+    tenantId: string | null;
   }) {
     const code = randomBytes(24).toString('hex');
     saveCode(code, {
@@ -126,6 +129,7 @@ export class OidcService implements OnModuleInit {
       redirectUri: params.redirectUri,
       codeChallenge: params.codeChallenge,
       issuer: params.issuer,
+      tenantId: params.tenantId,
       exp: Date.now() + 5 * 60 * 1000,
     });
     return code;
@@ -173,11 +177,17 @@ export class OidcService implements OnModuleInit {
       .setExpirationTime(now + 300)
       .sign(this.privateKey);
 
+    const consoleHandoffToken = this.jwt.sign(
+      { sub: user.id, tenantId: row.tenantId ?? null },
+      { expiresIn: '7d' },
+    );
+
     return {
       access_token: idToken,
       token_type: 'Bearer',
       expires_in: 300,
       id_token: idToken,
+      console_handoff_token: consoleHandoffToken,
     };
   }
 

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import secrets
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode, urlsplit
 
 import httpx
 import jwt
@@ -32,9 +33,37 @@ from octop.infra.users.manager import UserManager
 
 _LOGIN_STATE_TTL_SECONDS = 600
 _LOGIN_CODE_TTL_SECONDS = 60
+_CONSOLE_HANDOFF_CLAIM = "_mammoth_console_handoff"
+_CONSOLE_HANDOFF_SETTING = "mammoth.console_handoff.{user_id}"
+_CONSOLE_NEXT_ALLOWED = frozenset({"/admin", "/console/", "/console"})
 _HTTP_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
 logger = logging.getLogger(__name__)
+
+# Installed desktop must log in against production, not a dev issuer left in ~/.octop.
+_DESKTOP_OIDC_ISSUER_ENV = "OCTOP_MAMMOTH_OIDC_ISSUER"
+
+
+def desktop_oidc_issuer() -> str:
+    return os.environ.get(_DESKTOP_OIDC_ISSUER_ENV, "").strip().rstrip("/")
+
+
+def desktop_platform_origin() -> str:
+    """Origin of the 猛犸中台. Empty in local gateway dev, so the page origin is used."""
+    issuer = desktop_oidc_issuer()
+    if not issuer:
+        return ""
+    parts = urlsplit(issuer)
+    if not parts.scheme or not parts.netloc:
+        return ""
+    return f"{parts.scheme}://{parts.netloc}"
+
+
+def provider_for_desktop(provider: SsoProviderRow) -> SsoProviderRow:
+    issuer = desktop_oidc_issuer()
+    if not issuer or provider.kind != "oidc":
+        return provider
+    return replace(provider, issuer=issuer)
 
 
 @dataclass(frozen=True)
@@ -89,7 +118,10 @@ class SsoService:
                     "enabled": enabled,
                 }
             )
-        return {"providers": providers}
+        return {
+            "providers": providers,
+            "platform_origin": desktop_platform_origin(),
+        }
 
     def get_config_for_admin(self, *, public_base: str) -> dict[str, Any]:
         config = self.get_config_for_kind("oidc", public_base=public_base)
@@ -280,6 +312,7 @@ class SsoService:
         provider = self._services.sso_repo.get_by_id(login_state.provider_id)
         if provider is None or not provider.enabled:
             return self._error_redirect(frontend, "disabled")
+        provider = provider_for_desktop(provider)
         try:
             adapter = self._adapter(provider.kind)
         except ValueError:
@@ -331,6 +364,8 @@ class SsoService:
         except Exception:
             return self._error_redirect(frontend, "generic")
 
+        self._store_console_handoff(user.id, claims)
+
         login_code = secrets.token_urlsafe(32)
         self._services.sso_repo.attach_login_code(
             state,
@@ -371,7 +406,7 @@ class SsoService:
             raise ValueError("SSO is disabled")
         if not adapter.is_configured(provider):
             raise ValueError("SSO is misconfigured")
-        return provider
+        return provider_for_desktop(provider)
 
     def _configured_provider(self) -> SsoProviderRow:
         provider = self._services.sso_repo.get_provider()
@@ -452,7 +487,7 @@ class SsoService:
             id_token = token.get("id_token") if isinstance(token, dict) else None
             if not isinstance(id_token, str):
                 raise jwt.InvalidTokenError("token response has no ID token")
-            return verify_id_token(
+            claims = verify_id_token(
                 id_token,
                 jwks_uri=jwks_uri,
                 issuer=self._endpoint(discovery, "issuer"),
@@ -460,6 +495,47 @@ class SsoService:
                 nonce=nonce,
                 httpx=client,
             )
+            handoff = token.get("console_handoff_token") if isinstance(token, dict) else None
+            if isinstance(handoff, str) and handoff.strip():
+                claims[_CONSOLE_HANDOFF_CLAIM] = handoff.strip()
+            return claims
+
+    def _store_console_handoff(self, user_id: int, claims: Mapping[str, Any]) -> None:
+        token = claims.get(_CONSOLE_HANDOFF_CLAIM)
+        if not isinstance(token, str) or not token:
+            return
+        self._services.settings_repo.set(_CONSOLE_HANDOFF_SETTING.format(user_id=user_id), token)
+
+    def console_handoff_url(self, user_id: int) -> str:
+        """Mint a Chrome login URL for the current Octop user. Client identity wins."""
+        origin = desktop_platform_origin()
+        if not origin:
+            raise ValueError("platform origin is not configured")
+        token = self._services.settings_repo.get(_CONSOLE_HANDOFF_SETTING.format(user_id=user_id))
+        if not token:
+            raise ValueError("console handoff token is missing")
+        try:
+            with self._http_client() as client:
+                response = client.post(
+                    f"{origin}/console/api/auth/browser-sso-ticket",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                response.raise_for_status()
+                payload = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ValueError("console handoff request failed") from exc
+        ticket = payload.get("ticket") if isinstance(payload, dict) else None
+        if not isinstance(ticket, str) or not ticket.strip():
+            raise ValueError("console handoff ticket is missing")
+        next_path = payload.get("next") if isinstance(payload, dict) else None
+        if next_path not in _CONSOLE_NEXT_ALLOWED:
+            next_path = "/console/"
+        if next_path == "/console":
+            next_path = "/console/"
+        return (
+            f"{origin}/login?sso={quote(ticket.strip(), safe='')}"
+            f"&next={quote(next_path, safe='')}"
+        )
 
     @staticmethod
     def _string(

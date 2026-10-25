@@ -69,11 +69,12 @@ func startOctop(root string, port int) (*exec.Cmd, error) {
 	cmd := exec.Command(py, launch, "run")
 	cmd.Dir = root
 	mustEnv(cmd, map[string]string{
-		"OCTOP_HOME":           octopHome(),
-		"OCTOP_GREEN_PACKAGES": filepath.Join(root, "packages"),
-		"OCTOP_PORT":           strconv.Itoa(port),
-		"PYTHONNOUSERSITE":     "1",
-		"PYTHONPATH":           "",
+		"OCTOP_HOME":                octopHome(),
+		"OCTOP_GREEN_PACKAGES":      filepath.Join(root, "packages"),
+		"OCTOP_PORT":                strconv.Itoa(port),
+		"OCTOP_MAMMOTH_OIDC_ISSUER": "https://www.mmai.vip/console/api/oidc",
+		"PYTHONNOUSERSITE":          "1",
+		"PYTHONPATH":                "",
 	})
 	configureProcGroup(cmd)
 	if runtime.GOOS == "linux" {

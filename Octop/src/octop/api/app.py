@@ -10,7 +10,13 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+)
 from scalar_fastapi import get_scalar_api_reference
 
 from octop.api.middleware.jwt_auth import install as install_jwt_auth
@@ -33,13 +39,27 @@ class _RouterMount:
 _NO_CACHE_DASHBOARD_NAMES = frozenset({"sw.js", "manifest.json", "index.html"})
 
 
+def strip_agent_prefix(full_path: str) -> str:
+    """Map ``/agent/...`` onto the dashboard root.
+
+    The 猛犸 build uses Vite base ``/agent/``. The desktop shell opens Octop at
+    ``/``, so the same files must also be reachable under that prefix.
+    """
+    if full_path == "agent":
+        return ""
+    if full_path.startswith("agent/"):
+        return full_path[len("agent/") :]
+    return full_path
+
+
 def dashboard_cache_control(full_path: str) -> str | None:
     """Cache-Control for a dashboard SPA path, or ``None`` to leave unset."""
-    name = Path(full_path).name.lower() if full_path else "index.html"
-    if not full_path or name in _NO_CACHE_DASHBOARD_NAMES:
+    lookup = strip_agent_prefix(full_path)
+    name = Path(lookup).name.lower() if lookup else "index.html"
+    if not lookup or name in _NO_CACHE_DASHBOARD_NAMES:
         return "no-cache"
     # Vite emits content-hashed files under assets/ — safe to pin forever.
-    if full_path.startswith("assets/"):
+    if lookup.startswith("assets/"):
         return "public, max-age=31536000, immutable"
     return None
 
@@ -54,7 +74,7 @@ def _dashboard_response(path: Path, full_path: str) -> FileResponse:
 
 def is_dashboard_asset_path(full_path: str) -> bool:
     """True for hashed build artifacts that must 404 instead of falling back."""
-    return full_path.startswith("assets/")
+    return strip_agent_prefix(full_path).startswith("assets/")
 
 
 def _dashboard_fallback(index_file: Path, full_path: str) -> FileResponse:
@@ -318,24 +338,29 @@ def build_app(server: OctopServer) -> FastAPI:
         index_file = dashboard_dir / "index.html"
         if index_file.exists():
 
-            @app.get("/{full_path:path}", include_in_schema=False)
-            async def spa_fallback(full_path: str) -> FileResponse:
+            @app.get("/{full_path:path}", include_in_schema=False, response_model=None)
+            async def spa_fallback(full_path: str) -> FileResponse | RedirectResponse:
                 if full_path.startswith(("api/", "ws/")):
                     raise HTTPException(status_code=404, detail="Not Found")
+                # Desktop opens ``/``. The SPA router and OIDC return path live
+                # under ``/agent``, matching the gateway build.
+                if full_path in ("", "agent"):
+                    return RedirectResponse("/agent/chat", status_code=302)
 
-                if full_path:
-                    raw_path = Path(full_path)
+                lookup = strip_agent_prefix(full_path)
+                if lookup:
+                    raw_path = Path(lookup)
                     # Reject absolute paths and parent-dir references before
                     # joining, so user input never drives a path expression.
                     if raw_path.is_absolute() or ".." in raw_path.parts:
-                        return _dashboard_fallback(index_file, full_path)
+                        return _dashboard_fallback(index_file, lookup)
                     candidate = (dashboard_dir / Path(*raw_path.parts)).resolve()
                     try:
                         candidate.relative_to(dashboard_dir.resolve())
                     except ValueError:
-                        return _dashboard_fallback(index_file, full_path)
+                        return _dashboard_fallback(index_file, lookup)
                     if candidate.is_file():
-                        return _dashboard_response(candidate, full_path)
-                return _dashboard_fallback(index_file, full_path)
+                        return _dashboard_response(candidate, lookup)
+                return _dashboard_fallback(index_file, lookup)
 
     return app

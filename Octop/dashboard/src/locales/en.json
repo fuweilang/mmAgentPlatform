@@ -6944,6 +6944,9 @@
     "retry": "Retry",
     "offlineTitle": "Cannot reach the 猛犸AI server",
     "offlineSubtitle": "The network may be offline or the backend is not running. Check connectivity and try again.",
+    "loginUnreachableTitle": "Cannot open 猛犸 login",
+    "loginUnreachableSubtitle": "The login page is at {origin}, and it is not responding. The desktop app itself is already running.",
+    "loginUnreachableUnknown": "the platform",
     "backHome": "Back to Home"
   },
   "adminProviders": {

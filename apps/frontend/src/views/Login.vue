@@ -113,6 +113,8 @@ onMounted(async () => {
       return;
     } catch {
       ElMessage.error('登录已失效，请重新登录');
+      booting.value = false;
+      return;
     }
   }
   try {

@@ -6944,6 +6944,9 @@
     "retry": "重试",
     "offlineTitle": "无法连接 猛犸AI 服务",
     "offlineSubtitle": "网络不可用或后端未启动。请检查网络与服务状态后重试。",
+    "loginUnreachableTitle": "打不开猛犸登录",
+    "loginUnreachableSubtitle": "登录页在 {origin}，现在没有响应。客户端本身已在本机运行。",
+    "loginUnreachableUnknown": "中台",
     "backHome": "返回首页"
   },
   "adminProviders": {

@@ -61,6 +61,8 @@ services:
       OCTOP_ADMIN_USERNAME: ${OCTOP_ADMIN_USERNAME:-admin}
       OCTOP_DEFAULT_PASSWORD: ${OCTOP_DEFAULT_PASSWORD}
       OCTOP_ADMIN_DISPLAY_NAME: Admin
+      # 覆盖数据卷里可能留下的本机 issuer。本地 pnpm dev:octop 不设这个变量。
+      OCTOP_MAMMOTH_OIDC_ISSUER: https://www.mmai.vip/console/api/oidc
     ports:
       - "127.0.0.1:8088:8088"
     volumes:

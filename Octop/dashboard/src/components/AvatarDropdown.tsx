@@ -128,7 +128,7 @@ export default function AvatarDropdown({
     clearAuthToken();
     await logoutMammothIdp();
     await applyGuestLocale();
-    goMammothLogin();
+    await goMammothLogin();
   }, []);
 
   const handleSaveProfile = async (values: { display_name: string }) => {

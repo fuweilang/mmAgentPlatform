@@ -21,7 +21,7 @@ export const authApi = {
     }),
   exitWorkbench: () => http<SessionMe>('/api/auth/exit-workbench', { method: 'POST' }),
   issueBrowserSsoTicket: () =>
-    http<{ ticket: string }>('/api/auth/browser-sso-ticket', { method: 'POST' }),
+    http<{ ticket: string; next: string }>('/api/auth/browser-sso-ticket', { method: 'POST' }),
   consumeBrowserSso: (ticket: string) =>
     http<SessionMe>('/api/auth/browser-sso-consume', {
       method: 'POST',

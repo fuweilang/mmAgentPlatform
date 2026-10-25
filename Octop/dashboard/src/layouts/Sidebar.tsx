@@ -533,28 +533,8 @@ export default function Sidebar({
 
   const openEnterpriseConsole = useCallback(async (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
-    let path = "/console/";
-    try {
-      const res = await fetch("/console/api/auth/me", { credentials: "include" });
-      if (res.ok) {
-        const me = (await res.json()) as {
-          user?: { isPlatformAdmin?: boolean };
-          currentTenant?: unknown;
-        };
-        if (me.user?.isPlatformAdmin) {
-          path = "/admin";
-        }
-        window.open(`${window.location.origin}${path}`, "_blank", "noopener");
-        return;
-      }
-    } catch {
-      /* fall through to login */
-    }
-    window.open(
-      `${window.location.origin}/login?next=${encodeURIComponent(path)}`,
-      "_blank",
-      "noopener",
-    );
+    const { openEnterpriseConsoleFromClient } = await import("../utils/mammothSso");
+    window.open(await openEnterpriseConsoleFromClient(), "_blank", "noopener");
   }, []);
 
   const middleOfficeLink = isRailCollapsed ? (

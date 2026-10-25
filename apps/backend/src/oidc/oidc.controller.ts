@@ -52,18 +52,19 @@ export class OidcController {
       return res.status(400).send('invalid_request');
     }
 
-    const user = await this.userFromCookie(req);
+    const session = await this.userFromCookie(req);
     const authorizeUrl = this.oidc.authorizeUrl(req);
-    if (!user) {
+    if (!session) {
       return res.redirect(this.oidc.loginRedirect(authorizeUrl, req.hostname, req.protocol));
     }
 
-    const code = this.oidc.issueCode(user, {
+    const code = this.oidc.issueCode(session.user, {
       nonce,
       clientId: client_id,
       redirectUri: redirect_uri,
       codeChallenge: code_challenge,
       issuer: this.oidc.issuer(req),
+      tenantId: session.tenantId,
     });
     const next = new URL(redirect_uri);
     next.searchParams.set('code', code);
@@ -102,7 +103,7 @@ export class OidcController {
       if (payload.purpose === 'browser-sso') return null;
       const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
       if (!user || user.status !== 'active') return null;
-      return user;
+      return { user, tenantId: payload.tenantId ?? null };
     } catch {
       return null;
     }

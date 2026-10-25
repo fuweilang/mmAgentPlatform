@@ -3,6 +3,8 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +16,8 @@ import (
 	"strings"
 	"time"
 )
+
+const portableBundleStampName = ".bundle-sha256"
 
 func launchReady(root string) bool {
 	if _, err := os.Stat(filepath.Join(root, "launch.py")); err != nil {
@@ -36,16 +40,18 @@ func pythonExe(root string) string {
 func ensurePortable(locale Locale, status func(string)) error {
 	root := portableDir()
 	if launchReady(root) {
-		currentVersion := portableVersion(root)
-		bundledVersion, err := bundledPortableVersion()
-		if err != nil || bundledVersion == "" ||
-			(currentVersion != "" && compareVersions(bundledVersion, currentVersion) <= 0) {
+		newer, sameVersionChanged := bundledRuntimeNeedsReplace(root)
+		if !newer && !sameVersionChanged {
 			status(desktopText(locale, copyStatusUsingRuntime))
 			return nil
 		}
-		status(desktopText(locale, copyStatusBackupDatabase, bundledVersion))
-		if _, err := backupSQLiteBeforeUpgrade(root, currentVersion, bundledVersion); err != nil {
-			return fmt.Errorf("%s: %w", desktopText(locale, copyErrorBackupFailed), err)
+		if newer {
+			currentVersion := portableVersion(root)
+			bundledVersion, _ := bundledPortableVersion()
+			status(desktopText(locale, copyStatusBackupDatabase, bundledVersion))
+			if _, err := backupSQLiteBeforeUpgrade(root, currentVersion, bundledVersion); err != nil {
+				return fmt.Errorf("%s: %w", desktopText(locale, copyErrorBackupFailed), err)
+			}
 		}
 		status(desktopText(locale, copyStatusUpdatingRuntime))
 	} else {
@@ -58,6 +64,7 @@ func ensurePortable(locale Locale, status func(string)) error {
 		}
 		return err
 	}
+	_ = writePortableBundleStamp(root)
 	if runtime.GOOS == "darwin" {
 		_ = exec.Command("xattr", "-dr", "com.apple.quarantine", root).Run()
 	}
@@ -65,6 +72,62 @@ func ensurePortable(locale Locale, status func(string)) error {
 		return fmt.Errorf("portable extract missing launch.py or python under %s", root)
 	}
 	return nil
+}
+
+func bundledRuntimeNeedsReplace(root string) (newer bool, sameVersionChanged bool) {
+	currentVersion := portableVersion(root)
+	bundledVersion, err := bundledPortableVersion()
+	if err != nil || bundledVersion == "" {
+		return false, false
+	}
+	if currentVersion == "" || compareVersions(bundledVersion, currentVersion) > 0 {
+		return true, false
+	}
+	if compareVersions(bundledVersion, currentVersion) < 0 {
+		return false, false
+	}
+	want, err := bundledPortableDigest()
+	if err != nil || want == "" {
+		return false, false
+	}
+	return false, readPortableBundleStamp(root) != want
+}
+
+func bundledPortableDigest() (string, error) {
+	if os.Getenv("OCTOP_DESKTOP_PORTABLE_ZIP") == "" && len(embeddedPortable) > 0 {
+		sum := sha256.Sum256(embeddedPortable)
+		return hex.EncodeToString(sum[:]), nil
+	}
+	zipPath, err := bundledPortableZip()
+	if err != nil {
+		return "", err
+	}
+	file, err := os.Open(zipPath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	sum := sha256.New()
+	if _, err := io.Copy(sum, file); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(sum.Sum(nil)), nil
+}
+
+func readPortableBundleStamp(root string) string {
+	data, err := os.ReadFile(filepath.Join(root, portableBundleStampName))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func writePortableBundleStamp(root string) error {
+	sum, err := bundledPortableDigest()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(root, portableBundleStampName), []byte(sum+"\n"), 0o644)
 }
 
 func replacePortable(root string) error {

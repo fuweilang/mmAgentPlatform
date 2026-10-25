@@ -98,6 +98,53 @@ func TestEnsurePortableReplacesOlderRuntime(t *testing.T) {
 	}
 }
 
+func TestEnsurePortableReplacesSameVersionWhenBundleChanges(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("OCTOP_HOME", home)
+	root := portableDir()
+
+	oldZip := filepath.Join(t.TempDir(), "old.zip")
+	writeTestGreenZip(t, oldZip, "1.0.2")
+	if err := unzipGreen(oldZip, root); err != nil {
+		t.Fatal(err)
+	}
+	stale := filepath.Join(root, "stale.txt")
+	database := filepath.Join(home, "octop.db")
+	if err := os.WriteFile(stale, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(database, []byte("chat"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	newZip := filepath.Join(t.TempDir(), "new.zip")
+	writeTestGreenZip(t, newZip, "1.0.2")
+	t.Setenv("OCTOP_DESKTOP_PORTABLE_ZIP", newZip)
+
+	if err := ensurePortable(LocaleZH, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatalf("same-version bundle change should replace portable: %v", err)
+	}
+	if data, err := os.ReadFile(database); err != nil || string(data) != "chat" {
+		t.Fatalf("chat database changed: %q, %v", data, err)
+	}
+	if got := readPortableBundleStamp(root); got == "" {
+		t.Fatal("replaced runtime should record the bundled zip digest")
+	}
+
+	if err := os.WriteFile(stale, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensurePortable(LocaleZH, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(stale); err != nil || string(data) != "keep" {
+		t.Fatalf("matching bundle should not extract again: %q, %v", data, err)
+	}
+}
+
 func TestEnsurePortableUpgradesBundledVersionAfterDatabaseBackup(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("OCTOP_HOME", home)
@@ -272,6 +319,9 @@ func TestPortableVersionPrefersNewerMetadataOverVersionTxt(t *testing.T) {
 	b5Zip := filepath.Join(t.TempDir(), "b5.zip")
 	writeTestGreenZip(t, b5Zip, "1.0.2b5")
 	t.Setenv("OCTOP_DESKTOP_PORTABLE_ZIP", b5Zip)
+	if err := writePortableBundleStamp(root); err != nil {
+		t.Fatal(err)
+	}
 	backupCalls := 0
 	previousBackup := runSQLiteBackup
 	runSQLiteBackup = func(_, _, _ string) error {
@@ -436,7 +486,14 @@ func TestEnsurePortablePrereleaseUpgrade(t *testing.T) {
 			}
 			newZip := filepath.Join(t.TempDir(), "new.zip")
 			writeTestGreenZip(t, newZip, test.bundled)
-			t.Setenv("OCTOP_DESKTOP_PORTABLE_ZIP", newZip)
+			if test.upgrade {
+				t.Setenv("OCTOP_DESKTOP_PORTABLE_ZIP", newZip)
+			} else {
+				t.Setenv("OCTOP_DESKTOP_PORTABLE_ZIP", oldZip)
+				if err := writePortableBundleStamp(root); err != nil {
+					t.Fatal(err)
+				}
+			}
 
 			backupCalls := 0
 			previousBackup := runSQLiteBackup

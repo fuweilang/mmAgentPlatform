@@ -64,6 +64,8 @@ jobs:
 
       - name: Build frontend → src/octop/dashboard
         working-directory: Octop
+        env:
+          VITE_BASE: /
         run: make build-frontend
 
       - uses: actions/upload-artifact@v7

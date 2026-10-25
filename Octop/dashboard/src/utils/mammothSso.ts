@@ -5,7 +5,8 @@ const OCTOP_HOME_PATH = "/chat";
 
 /** Absolute URL the unified login sends the user back to after the OIDC round-trip. */
 export function octopReturnUrl() {
-  return `${window.location.origin}/agent${OCTOP_HOME_PATH}`;
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  return `${window.location.origin}${base}${OCTOP_HOME_PATH}`;
 }
 
 export function mammothLoginUrl(next?: string) {

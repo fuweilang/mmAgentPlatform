@@ -87,8 +87,14 @@ export default defineConfig(({ mode }) => {
     }
   }
 
+  // 网页经网关挂在 /agent/；桌面包 Octop 静态根是 /。CI 设 VITE_BASE=/。
+  const configuredBase = process.env.VITE_BASE || env.VITE_BASE || "/agent/";
+  const base = configuredBase.endsWith("/")
+    ? configuredBase
+    : `${configuredBase}/`;
+
   return {
-    base: "/agent/",
+    base,
     build: {
       outDir: path.resolve(__dirname, "../src/octop/dashboard"),
       emptyOutDir: true,

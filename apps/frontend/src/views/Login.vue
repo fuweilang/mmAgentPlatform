@@ -1,63 +1,71 @@
 <template>
   <section class="login-page">
     <div class="login-shell">
-      <form class="login-card" :class="{ 'login-card--register': mode === 'register' }" @submit.prevent="onSubmit">
-        <div class="login-card-head">
-          <img class="login-logo" src="/mengma-logo.png" alt="" width="72" height="72" />
-          <h2>猛犸智能体</h2>
-          <p>{{ mode === 'register' ? '注册后立即开通企业空间' : '企业用户使用手机号和密码进入系统' }}</p>
-        </div>
+      <div v-if="booting" class="login-booting">
+        <img class="login-boot-logo" src="/mengma-logo.png" alt="" width="56" height="56" />
+        <p>正在进入猛犸智能体…</p>
+      </div>
 
-        <el-segmented v-model="mode" class="mode-switch" :options="modeOptions" />
-
-        <label v-if="mode === 'register'" class="field">
-          <span>姓名</span>
-          <el-input v-model="form.name" placeholder="请输入姓名" maxlength="40" />
-        </label>
-
-        <label class="field">
-          <span>手机号</span>
-          <el-input
-            v-model="form.phone"
-            placeholder="请输入手机号"
-            maxlength="11"
-            autocomplete="username"
-            @input="form.phone = form.phone.replace(/[^\d]/g, '').slice(0, 11)"
-          />
-        </label>
-
-        <label v-if="mode === 'register'" class="field">
-          <span>企业/主体名称</span>
-          <el-input v-model="form.enterpriseName" placeholder="请输入企业或经营主体名称" maxlength="160" />
-        </label>
-
-        <label class="field">
-          <span>{{ mode === 'register' ? '设置密码' : '密码' }}</span>
-          <el-input
-            v-model="form.password"
-            type="password"
-            :placeholder="mode === 'register' ? '请设置密码' : '请输入密码'"
-            show-password
-            :autocomplete="mode === 'register' ? 'new-password' : 'current-password'"
-          />
-        </label>
-
-        <div class="agreement">
-          <div class="agreement-consent">
-            <el-checkbox v-model="form.agree" />
-            <span>
-              我已阅读并同意
-              <span class="agreement-document">用户协议</span>
-              和
-              <span class="agreement-document">隐私政策</span>
-            </span>
+      <template v-else>
+        <form class="login-card" :class="{ 'login-card--register': mode === 'register' }" @submit.prevent="onSubmit">
+          <div class="login-card-head">
+            <img class="login-logo" src="/mengma-logo.png" alt="" width="72" height="72" />
+            <h2>猛犸智能体</h2>
+            <p>{{ mode === 'register' ? '注册后立即开通企业空间' : '企业用户使用手机号和密码进入系统' }}</p>
           </div>
-        </div>
 
-        <el-button class="submit-button" type="primary" native-type="submit" :loading="loading" :disabled="!form.agree">
-          {{ mode === 'register' ? '注册并进入系统' : '登录' }}
-        </el-button>
-      </form>
+          <el-segmented v-model="mode" class="mode-switch" :options="modeOptions" />
+
+          <label v-if="mode === 'register'" class="field">
+            <span>姓名</span>
+            <el-input v-model="form.name" placeholder="请输入姓名" maxlength="40" />
+          </label>
+
+          <label class="field">
+            <span>手机号</span>
+            <el-input
+              v-model="form.phone"
+              placeholder="请输入手机号"
+              maxlength="11"
+              autocomplete="username"
+              @input="form.phone = form.phone.replace(/[^\d]/g, '').slice(0, 11)"
+            />
+          </label>
+
+          <label v-if="mode === 'register'" class="field">
+            <span>企业/主体名称</span>
+            <el-input v-model="form.enterpriseName" placeholder="请输入企业或经营主体名称" maxlength="160" />
+          </label>
+
+          <label class="field">
+            <span>{{ mode === 'register' ? '设置密码' : '密码' }}</span>
+            <el-input
+              v-model="form.password"
+              type="password"
+              :placeholder="mode === 'register' ? '请设置密码' : '请输入密码'"
+              show-password
+              :autocomplete="mode === 'register' ? 'new-password' : 'current-password'"
+            />
+          </label>
+
+          <div class="agreement">
+            <div class="agreement-consent">
+              <el-checkbox v-model="form.agree" />
+              <span>
+                我已阅读并同意
+                <span class="agreement-document">用户协议</span>
+                和
+                <span class="agreement-document">隐私政策</span>
+              </span>
+            </div>
+          </div>
+
+          <el-button class="submit-button" type="primary" native-type="submit" :loading="loading" :disabled="!form.agree">
+            {{ mode === 'register' ? '注册并进入系统' : '登录' }}
+          </el-button>
+        </form>
+        <ClientDownloadLink variant="login" />
+      </template>
     </div>
   </section>
 </template>
@@ -65,7 +73,9 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
+import { canAccessConsole } from '@mammoth/shared';
 import { useAuthStore } from '../stores/auth';
+import ClientDownloadLink from '../components/ClientDownloadLink.vue';
 
 const AGENT_HOME = '/agent/chat';
 const auth = useAuthStore();
@@ -74,6 +84,8 @@ function nextParam() {
   return new URLSearchParams(location.search).get('next');
 }
 const loading = ref(false);
+/** 免登/已登录时先不渲染表单，避免登录页一闪而过。 */
+const booting = ref(true);
 const mode = ref<'password' | 'register'>('password');
 const modeOptions = [
   { label: '密码登录', value: 'password' },
@@ -88,12 +100,30 @@ const form = reactive({
 });
 
 onMounted(async () => {
+  const sso = new URLSearchParams(location.search).get('sso');
+  if (sso) {
+    const params = new URLSearchParams(location.search);
+    params.delete('sso');
+    const qs = params.toString();
+    history.replaceState(null, '', `/login${qs ? `?${qs}` : ''}`);
+    try {
+      await auth.consumeBrowserSso(sso);
+      goAfterLogin();
+      return;
+    } catch {
+      ElMessage.error('登录已失效，请重新登录');
+    }
+  }
   try {
     await auth.load();
-    if (auth.session) goAfterLogin();
+    if (auth.session) {
+      goAfterLogin();
+      return;
+    }
   } catch {
     /* stay on login */
   }
+  booting.value = false;
 });
 
 function isAgentLoginPath(pathname: string) {
@@ -131,12 +161,38 @@ async function startOctopSession() {
 
 async function goAfterLogin() {
   const next = nextParam();
-  if (next?.startsWith('/middle')) {
-    window.location.href = next;
+  if (next?.startsWith('/admin')) {
+    if (auth.session?.user.isPlatformAdmin) {
+      window.location.href = next;
+      return;
+    }
+    await startOctopSession();
+    return;
+  }
+  if (next?.startsWith('/console') || next?.startsWith('/middle')) {
+    const isOidc =
+      next.startsWith('/middle/api/oidc') || next.startsWith('/console/api/oidc');
+    if (isOidc) {
+      window.location.href = next;
+      return;
+    }
+    if (!canAccessConsole(auth.session)) {
+      await startOctopSession();
+      return;
+    }
+    if (auth.session?.user.isPlatformAdmin && !auth.session.currentTenant) {
+      window.location.href = '/admin';
+      return;
+    }
+    window.location.href = next.startsWith('/middle')
+      ? `/console${next === '/middle' || next === '/middle/' ? '/' : next.slice('/middle'.length)}`
+      : next;
     return;
   }
   if (next?.startsWith('/agent')) {
-    if (isAgentLoginPath(next)) {
+    // 回到 agent：手上没有 Octop 会话（如从总后台/控制台新开标签进 /agent/chat）时
+    // 必须先把 OIDC 会话建起来，否则会空转回 /login。
+    if (isAgentLoginPath(next) || !hasOctopToken()) {
       await startOctopSession();
       return;
     }
@@ -147,13 +203,19 @@ async function goAfterLogin() {
     try {
       const u = new URL(next);
       const okHost = u.hostname === location.hostname || ['127.0.0.1', 'localhost'].includes(u.hostname);
-      if (okHost && isAgentLoginPath(u.pathname)) {
+      if (
+        okHost &&
+        u.pathname.startsWith('/agent') &&
+        (isAgentLoginPath(u.pathname) || !hasOctopToken())
+      ) {
         await startOctopSession();
         return;
       }
       const okDest =
         u.pathname.startsWith('/agent') ||
+        u.pathname.startsWith('/console') ||
         u.pathname.startsWith('/middle') ||
+        u.pathname.startsWith('/console/api/oidc') ||
         u.pathname.startsWith('/middle/api/oidc') ||
         u.pathname.startsWith('/api/oidc') ||
         u.pathname.startsWith('/api/auth/oidc');
@@ -164,6 +226,10 @@ async function goAfterLogin() {
     } catch {
       /* fall through */
     }
+  }
+  if (auth.session?.user.isPlatformAdmin) {
+    window.location.href = '/admin';
+    return;
   }
   await startOctopSession();
 }
@@ -222,8 +288,37 @@ async function onSubmit() {
   align-items: center;
   display: flex;
   flex-direction: column;
+  gap: 16px;
   width: min(440px, 100%);
 }
+
+.login-booting {
+  align-items: center;
+  color: #667085;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  gap: 12px;
+  padding: 64px 0;
+}
+.login-boot-logo {
+  animation: login-boot-pulse 1.2s ease-in-out infinite;
+  height: 56px;
+  width: 56px;
+}
+.login-booting p {
+  margin: 0;
+}
+@keyframes login-boot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
 .login-card {
   background: #fff;
   border: 1px solid #e7eaf0;

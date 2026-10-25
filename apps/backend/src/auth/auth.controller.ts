@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nes
 import { Request, Response } from 'express';
 import { User } from '@prisma/client';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, SwitchTenantDto } from './dto/login.dto';
+import { ConsumeBrowserSsoDto, LoginDto, RegisterDto, SwitchTenantDto } from './dto/login.dto';
 import { JwtGuard } from './jwt.guard';
 import { CurrentTenantId, CurrentUser } from './current-user';
 
@@ -22,10 +22,33 @@ export class AuthController {
     return this.auth.register(dto, res, req.ip);
   }
 
+  @Post('provision')
+  @HttpCode(200)
+  @UseGuards(JwtGuard)
+  provision(@CurrentUser() user: User, @Body() dto: RegisterDto) {
+    return this.auth.provisionEnterpriseUser(user, dto);
+  }
+
   @Post('logout')
   @HttpCode(200)
   logout(@Res({ passthrough: true }) res: Response) {
     return this.auth.logout(res);
+  }
+
+  @Post('browser-sso-ticket')
+  @HttpCode(200)
+  @UseGuards(JwtGuard)
+  issueBrowserSsoTicket(@CurrentUser() user: User, @CurrentTenantId() tenantId: string | null) {
+    return this.auth.issueBrowserSsoTicket(user, tenantId);
+  }
+
+  @Post('browser-sso-consume')
+  @HttpCode(200)
+  consumeBrowserSso(
+    @Body() dto: ConsumeBrowserSsoDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.auth.consumeBrowserSso(dto.ticket, res);
   }
 
   @Get('me')
@@ -43,5 +66,16 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return this.auth.switchTenant(user, dto.tenantId, res);
+  }
+
+  @Post('exit-workbench')
+  @HttpCode(200)
+  @UseGuards(JwtGuard)
+  exitWorkbench(
+    @CurrentUser() user: User,
+    @CurrentTenantId() tenantId: string | null,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.auth.exitWorkbench(user, tenantId, res);
   }
 }

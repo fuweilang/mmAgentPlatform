@@ -43,7 +43,7 @@ export class TenantService {
       }
     }
     const tenant = await this.prisma.tenant.create({
-      data: { name: dto.name, slug: dto.slug, type: dto.type },
+      data: { name: dto.name, slug: dto.slug, type: dto.type, quota: { create: {} } },
     });
     if (dto.parentId) {
       const parent = await this.prisma.tenant.findUnique({ where: { id: dto.parentId } });
@@ -57,7 +57,7 @@ export class TenantService {
   }
 
   async members(user: User, tenantId: string | null) {
-    const id = await this.requireTenant(user, tenantId);
+    const id = await this.requireConsoleAdmin(user, tenantId);
     return this.prisma.orgMember.findMany({
       where: { tenantId: id },
       include: { user: { select: { id: true, name: true, email: true, phone: true, status: true } } },
@@ -66,7 +66,7 @@ export class TenantService {
   }
 
   async addMember(actor: User, tenantId: string | null, dto: CreateMemberDto) {
-    const id = await this.requireTenant(actor, tenantId, true);
+    const id = await this.requireConsoleAdmin(actor, tenantId);
     let user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
 
     if (!user) {
@@ -82,7 +82,7 @@ export class TenantService {
     const existing = await this.prisma.orgMember.findUnique({
       where: { userId_tenantId: { userId: user.id, tenantId: id } },
     });
-    if (existing) throw new BadRequestException('该用户已在本租户');
+    if (existing) throw new BadRequestException('该用户已在本企业');
 
     const member = await this.prisma.orgMember.create({
       data: { userId: user.id, tenantId: id, role: dto.role },
@@ -94,8 +94,10 @@ export class TenantService {
     return member;
   }
 
-  private async requireTenant(user: User, tenantId: string | null, write = false) {
-    if (!tenantId) throw new BadRequestException('请先选择租户');
+  async requireTenant(user: User, tenantId: string | null) {
+    if (!tenantId) {
+      throw new BadRequestException(user.isPlatformAdmin ? '请先选择租户' : '请先选择企业');
+    }
     if (user.isPlatformAdmin) {
       const t = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
       if (!t) throw new NotFoundException('租户不存在');
@@ -104,10 +106,19 @@ export class TenantService {
     const membership = await this.prisma.orgMember.findUnique({
       where: { userId_tenantId: { userId: user.id, tenantId } },
     });
-    if (!membership) throw new ForbiddenException('无权访问该租户');
-    if (write && membership.role === MemberRole.MEMBER) {
-      throw new ForbiddenException('成员不能添加员工');
-    }
+    if (!membership) throw new ForbiddenException('无权访问该企业');
     return tenantId;
+  }
+
+  async requireConsoleAdmin(user: User, tenantId: string | null) {
+    const id = await this.requireTenant(user, tenantId);
+    if (user.isPlatformAdmin) return id;
+    const membership = await this.prisma.orgMember.findUnique({
+      where: { userId_tenantId: { userId: user.id, tenantId: id } },
+    });
+    if (!membership || membership.role === MemberRole.MEMBER) {
+      throw new ForbiddenException('普通成员不能管理企业后台');
+    }
+    return id;
   }
 }

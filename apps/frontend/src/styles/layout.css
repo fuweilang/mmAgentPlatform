@@ -5,6 +5,9 @@
   --app-primary-color: #2563eb;
   --app-primary-hover-color: #1d4ed8;
   --app-primary-light-color: #eff4fe;
+  --app-heading-color: #333946;
+  --app-border-color: #dfe5ef;
+  --app-page-bg: #f5f7fb;
   --el-font-family: var(--app-font-family);
   --el-text-color-primary: var(--app-text-color);
   --el-text-color-regular: var(--app-text-color);
@@ -102,6 +105,26 @@ body,
   overflow-y: auto;
 }
 
+.sidebar-group-title {
+  color: #98a2b3;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  margin: 0;
+  padding: 14px 18px 6px;
+}
+
+.sidebar-nav > .sidebar-group-title:first-child {
+  padding-top: 10px;
+}
+
+.sidebar-collapsed .sidebar .sidebar-group-title {
+  height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
 .sidebar-nav a {
   align-items: center;
   background: transparent;
@@ -148,6 +171,30 @@ body,
   transition: opacity 0.14s ease;
 }
 
+.sidebar-footer {
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+.chat-jump {
+  align-items: center;
+  border-top: 1px solid #dfe5ef;
+  color: #667085;
+  display: flex;
+  gap: 10px;
+  height: 44px;
+  padding: 0 18px;
+  text-decoration: none;
+  transition: background-color 0.18s ease, color 0.18s ease;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.chat-jump:hover {
+  background: #f0f4ff;
+  color: var(--app-primary-color);
+}
+
 .sidebar-collapse {
   align-items: center;
   background: #ffffff;
@@ -159,7 +206,6 @@ body,
   flex: 0 0 44px;
   height: 44px;
   justify-content: center;
-  margin-top: auto;
   padding: 0;
   width: 100%;
 }
@@ -192,7 +238,8 @@ body,
   width: 0;
 }
 
-.sidebar-collapsed .sidebar-nav a {
+.sidebar-collapsed .sidebar-nav a,
+.sidebar-collapsed .chat-jump {
   gap: 0;
   justify-content: center;
   padding: 10px 0;
@@ -237,7 +284,17 @@ body,
 .navbar-actions {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+}
+
+.navbar-tenant {
+  color: var(--app-heading-color);
+  font-size: 13px;
+  font-weight: 600;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-menu {
@@ -282,7 +339,132 @@ body,
   flex: 1;
   min-height: 0;
   padding: 20px;
-  background: #f5f7fb;
+  background: var(--app-page-bg);
+}
+
+.page-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.page-header h1 {
+  color: var(--app-heading-color);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  margin: 0;
+}
+
+.page-header p {
+  color: var(--app-text-color);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 4px 0 0;
+  max-width: 720px;
+}
+
+.page-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.page-toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.page-section {
+  background: #fff;
+  border: 1px solid var(--app-border-color);
+  margin-bottom: 16px;
+  padding: 16px 20px;
+}
+
+.page-section-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.page-section-head h2 {
+  color: var(--app-heading-color);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.metric-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 16px;
+}
+
+.metric-card {
+  background: #fff;
+  border: 1px solid var(--app-border-color);
+  min-height: 112px;
+  padding: 14px 16px;
+}
+
+.metric-card.is-clickable {
+  cursor: pointer;
+}
+
+.metric-card.is-clickable:hover {
+  background: #f8fafc;
+}
+
+.metric-card-label {
+  color: #475467;
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.metric-card-value {
+  color: var(--app-primary-color);
+  display: block;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 8px 0 4px;
+}
+
+.metric-card-hint {
+  color: var(--app-text-color);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.page-alert {
+  margin-bottom: 12px;
+}
+
+.page-pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+@media (max-width: 960px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .page-header {
+    flex-direction: column;
+  }
 }
 
 .el-button,

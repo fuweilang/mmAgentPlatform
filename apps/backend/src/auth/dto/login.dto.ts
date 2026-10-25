@@ -30,3 +30,8 @@ export class SwitchTenantDto {
   @IsString()
   tenantId!: string;
 }
+
+export class ConsumeBrowserSsoDto {
+  @IsString()
+  ticket!: string;
+}

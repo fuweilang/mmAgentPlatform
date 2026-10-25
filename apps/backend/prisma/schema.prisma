@@ -19,6 +19,17 @@ enum MemberRole {
   MEMBER
 }
 
+enum AccessScope {
+  ALL
+  SELECTED
+}
+
+enum KbStatus {
+  PENDING
+  READY
+  FAILED
+}
+
 model User {
   id               String      @id @default(cuid())
   phone            String      @unique
@@ -31,21 +42,32 @@ model User {
   createdAt        DateTime    @default(now()) @map("created_at")
   updatedAt        DateTime    @updatedAt @map("updated_at")
   memberships      OrgMember[]
+  agentGrants      AgentGrant[]
+  kbGrants         KbGrant[]
 
   @@map("user")
 }
 
 model Tenant {
-  id        String      @id @default(cuid())
-  name      String
-  slug      String      @unique
-  type      TenantType
-  status    String      @default("active")
-  createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
-  members   OrgMember[]
-  parents   OrgTree[]   @relation("ChildTenant")
-  children  OrgTree[]   @relation("ParentTenant")
+  id               String      @id @default(cuid())
+  name             String
+  slug             String      @unique
+  type             TenantType
+  status           String      @default("active")
+  logoUrl          String?     @map("logo_url")
+  welcomeMessage   String      @default("") @map("welcome_message")
+  defaultAgentId   String?     @map("default_agent_id")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  members          OrgMember[]
+  parents          OrgTree[]    @relation("ChildTenant")
+  children         OrgTree[]    @relation("ParentTenant")
+  agents           AgentRef[]
+  kbFolders        KbFolder[]
+  kbDocuments      KbDocument[]
+  kbChunks         KbChunk[]
+  usageEvents      UsageEvent[]
+  quota            Quota?
 
   @@map("tenant")
 }
@@ -90,4 +112,119 @@ model AuditLog {
   @@index([tenantId, createdAt])
   @@index([userId])
   @@map("audit_log")
+}
+
+model AgentRef {
+  id          String      @id @default(cuid())
+  tenantId    String      @map("tenant_id")
+  name        String
+  persona     String      @default("")
+  enabled     Boolean     @default(true)
+  visibility  AccessScope @default(ALL)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  grants      AgentGrant[]
+
+  @@index([tenantId])
+  @@map("agent_ref")
+}
+
+model AgentGrant {
+  id      String   @id @default(cuid())
+  agentId String   @map("agent_id")
+  userId  String   @map("user_id")
+  agent   AgentRef @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, userId])
+  @@index([userId])
+  @@map("agent_grant")
+}
+
+model KbFolder {
+  id         String       @id @default(cuid())
+  tenantId   String       @map("tenant_id")
+  name       String
+  createdAt  DateTime     @default(now()) @map("created_at")
+  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  documents  KbDocument[]
+
+  @@index([tenantId])
+  @@map("kb_folder")
+}
+
+model KbDocument {
+  id           String      @id @default(cuid())
+  tenantId     String      @map("tenant_id")
+  folderId     String?     @map("folder_id")
+  name         String
+  originalName String      @map("original_name")
+  mimeType     String      @map("mime_type")
+  sizeBytes    Int         @map("size_bytes")
+  storagePath  String      @map("storage_path")
+  status       KbStatus    @default(PENDING)
+  visibility   AccessScope @default(ALL)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  folder       KbFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  grants       KbGrant[]
+  chunks       KbChunk[]
+
+  @@index([tenantId])
+  @@index([folderId])
+  @@map("kb_document")
+}
+
+model KbGrant {
+  id         String     @id @default(cuid())
+  documentId String     @map("document_id")
+  userId     String     @map("user_id")
+  document   KbDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId])
+  @@index([userId])
+  @@map("kb_grant")
+}
+
+model KbChunk {
+  id         String     @id @default(cuid())
+  tenantId   String     @map("tenant_id")
+  documentId String     @map("document_id")
+  ordinal    Int
+  content    String
+  createdAt  DateTime   @default(now()) @map("created_at")
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  document   KbDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([documentId])
+  @@map("kb_chunk")
+}
+
+model UsageEvent {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  userId    String?  @map("user_id")
+  kind      String
+  quantity  Int      @default(1)
+  meta      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([userId])
+  @@map("usage_event")
+}
+
+model Quota {
+  id            String   @id @default(cuid())
+  tenantId      String   @unique @map("tenant_id")
+  monthlyTurns  Int      @default(1000) @map("monthly_turns")
+  monthlyTokens Int      @default(0) @map("monthly_tokens")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("quota")
 }

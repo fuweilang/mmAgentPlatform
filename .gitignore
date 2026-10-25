@@ -11,3 +11,6 @@ coverage/
 *.tsbuildinfo
 apps/backend/generated/
 apps/backend/.oidc-keys.json
+apps/backend/uploads/
+downloads/*.dmg
+downloads/*.exe

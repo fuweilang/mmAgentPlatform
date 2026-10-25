@@ -54,5 +54,15 @@ export const useAuthStore = defineStore('auth', () => {
     apply(await authApi.switchTenant(tenantId));
   }
 
-  return { session, load, login, register, logout, switchTenant };
+  async function exitWorkbench() {
+    apply(await authApi.exitWorkbench());
+  }
+
+  async function consumeBrowserSso(ticket: string) {
+    localStorage.removeItem('auth_token');
+    sessionStorage.removeItem('auth_token');
+    apply(await authApi.consumeBrowserSso(ticket));
+  }
+
+  return { session, load, login, register, logout, switchTenant, exitWorkbench, consumeBrowserSso };
 });

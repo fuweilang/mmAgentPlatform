@@ -19,4 +19,12 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ tenantId }),
     }),
+  exitWorkbench: () => http<SessionMe>('/api/auth/exit-workbench', { method: 'POST' }),
+  issueBrowserSsoTicket: () =>
+    http<{ ticket: string }>('/api/auth/browser-sso-ticket', { method: 'POST' }),
+  consumeBrowserSso: (ticket: string) =>
+    http<SessionMe>('/api/auth/browser-sso-consume', {
+      method: 'POST',
+      body: JSON.stringify({ ticket }),
+    }),
 };

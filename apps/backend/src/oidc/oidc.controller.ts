@@ -17,8 +17,8 @@ export class OidcController {
   ) {}
 
   @Get('oidc/.well-known/openid-configuration')
-  discovery() {
-    return this.oidc.discovery();
+  discovery(@Req() req: Request) {
+    return this.oidc.discovery(req);
   }
 
   @Get('oidc/jwks')
@@ -53,7 +53,7 @@ export class OidcController {
     }
 
     const user = await this.userFromCookie(req);
-    const authorizeUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+    const authorizeUrl = this.oidc.authorizeUrl(req);
     if (!user) {
       return res.redirect(this.oidc.loginRedirect(authorizeUrl, req.hostname, req.protocol));
     }
@@ -63,6 +63,7 @@ export class OidcController {
       clientId: client_id,
       redirectUri: redirect_uri,
       codeChallenge: code_challenge,
+      issuer: this.oidc.issuer(req),
     });
     const next = new URL(redirect_uri);
     next.searchParams.set('code', code);
@@ -71,8 +72,8 @@ export class OidcController {
   }
 
   @Post('oidc/token')
-  async token(@Body() body: Record<string, string>) {
-    return this.oidc.exchange(body);
+  async token(@Req() req: Request, @Body() body: Record<string, string>) {
+    return this.oidc.exchange(body, req);
   }
 
   @Get('oidc/userinfo')

@@ -1,6 +1,6 @@
 # agentPlatform
 
-猛犸智能体产品线在本目录。**换模型先读 `docs/ARCHITECTURE.md`，再读本文件。不要回放旧聊天。**
+猛犸智能体产品线在本目录。**换模型先读 `docs/ARCHITECTURE.md`，再读本文件，进行中的改动读 `openspec/`。不要回放旧聊天。**
 
 说话用中文、简短；引用代码用 `path:line`。不擅自 commit/push、不扩大范围。
 
@@ -17,7 +17,7 @@ Octop 细则：`Octop/AGENTS.md`、`docs/CODE-MAP-octop.md`。冲突以代码为
 
 ## 怎么跑
 
-5 个 Tab，浏览器只开 **http://127.0.0.1:5201**（或局域网 IP:5201）：
+网页：浏览器只开 **http://127.0.0.1:5201**。客户端：`pnpm dev:desktop`（须网关和 Octop 已起）。
 
 ```
 pnpm dev:api        # :3100 中台 API
@@ -25,13 +25,14 @@ pnpm dev:web        # :5202 Vue
 pnpm dev:gateway    # :5201 入口
 pnpm dev:octop      # :8088 Octop
 pnpm dev:agent      # :5203 Octop dashboard
+pnpm dev:desktop    # 猛犸智能体
 ```
 
 | URL | 含义 |
 |---|---|
 | `/login` | 统一登录 |
 | `/agent/chat` | 智能体（默认首页） |
-| `/middle/` | 中台 |
+| `/console/` | 企业控制台（旧 `/middle/` 会跳过来） |
 
 改网关或 Vite 后必须重启对应 Tab。不要用 `pnpm dev` 一把起（不好看报错）。
 
@@ -53,4 +54,4 @@ i18n：有的 key 已叫 `common.copyErrorFor猛犸AI` 等，`t()` 必须对得�
 - 上游不 force push、不改 CI/发布
 - 定制小 diff，方便 rebase
 - 检索/会话必须带 `tenant_id`（KB 做的时候）
-- 客户本机文件 API：架构里明确不做
+- 客户本机文件：只通过客户端工作区；首次写盘说清范围，禁止默认扫全盘

@@ -9,7 +9,12 @@ import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 
-export type JwtPayload = { sub: string; tenantId?: string | null };
+export type JwtPayload = {
+  sub: string;
+  tenantId?: string | null;
+  purpose?: string;
+  jti?: string;
+};
 
 @Injectable()
 export class JwtGuard implements CanActivate {
@@ -34,6 +39,7 @@ export class JwtGuard implements CanActivate {
       throw new UnauthorizedException('登录已过期');
     }
 
+    if (payload.purpose === 'browser-sso') throw new UnauthorizedException('登录已过期');
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user || user.status !== 'active') throw new UnauthorizedException('账号不可用');
 

@@ -11,6 +11,7 @@
     "dev:gateway": "node scripts/dev-gateway.mjs",
     "dev:octop": "cd Octop && ./start",
     "dev:agent": "VITE_DEV_PORT=5203 VITE_HMR_CLIENT_PORT=5201 npm --prefix Octop/dashboard run dev",
+    "dev:desktop": "cd Octop/desktop/src && OCTOP_DESKTOP_URL=http://127.0.0.1:5201 PATH=\"$HOME/go/bin:$PATH\" wails3 dev",
     "build": "pnpm --filter @mammoth/shared build && pnpm --filter @mammoth/backend build && pnpm --filter @mammoth/frontend build",
     "db:up": "docker compose -f infra/docker-compose.yml up -d",
     "db:down": "docker compose -f infra/docker-compose.yml down",

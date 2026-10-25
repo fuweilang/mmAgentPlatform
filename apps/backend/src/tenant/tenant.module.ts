@@ -8,5 +8,6 @@ import { MemberController } from './member.controller';
   imports: [AuthModule],
   controllers: [TenantController, MemberController],
   providers: [TenantService],
+  exports: [TenantService],
 })
 export class TenantModule {}

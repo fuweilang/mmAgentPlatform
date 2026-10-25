@@ -1,0 +1,41 @@
+# 精简 Octop：网页发布用。不含 OCR / 本地向量 / Playwright 浏览器。
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HOME=/data \
+    OCTOP_BIND_HOST=0.0.0.0 \
+    OCTOP_PORT=8088 \
+    OCTOP_LOG_LEVEL=info \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_INDEX_URL=https://mirrors.cloud.tencent.com/pypi/simple \
+    UV_INSECURE_HOST=mirrors.cloud.tencent.com
+
+RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g; s|security.debian.org|mirrors.cloud.tencent.com|g' /etc/apt/sources.list.d/debian.sources; \
+    fi \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends curl git ca-certificates gcc make libc6-dev linux-libc-dev \
+  && rm -rf /var/lib/apt/lists/* \
+  && pip install --no-cache-dir uv -i https://mirrors.cloud.tencent.com/pypi/simple
+
+WORKDIR /app
+COPY pyproject.toml uv.lock README.md LICENSE ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --no-install-project --no-dev
+
+COPY src/ ./src/
+COPY .env.example ./
+COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+  && uv sync --no-dev \
+  && mkdir -p /data/.octop
+
+ENV PATH="/app/.venv/bin:$PATH"
+EXPOSE 8088
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+  CMD ["sh", "-c", "curl -f http://localhost:${OCTOP_PORT:-8088}/api/health || exit 1"]
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD []

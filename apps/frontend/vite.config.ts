@@ -20,6 +20,11 @@ export default defineConfig({
       clientPort: 5201,
     },
     proxy: {
+      '/console/api': {
+        target: 'http://127.0.0.1:3100',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/console\/api/, '/api'),
+      },
       '/middle/api': {
         target: 'http://127.0.0.1:3100',
         changeOrigin: true,

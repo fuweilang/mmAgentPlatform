@@ -9,6 +9,13 @@ import { loadOidcKeys, OIDC_KID } from './oidc.keys';
 import { saveCode, takeCode } from './oidc.store';
 
 const CLIENT_ID = 'mammoth-octop';
+const PUBLIC_API_HEADER = 'x-mammoth-public-api';
+const DEFAULT_ISSUER = 'http://127.0.0.1:5201/console/api/oidc';
+
+type RequestLike = {
+  headers?: Record<string, unknown>;
+  originalUrl?: string;
+};
 
 @Injectable()
 export class OidcService implements OnModuleInit {
@@ -26,16 +33,40 @@ export class OidcService implements OnModuleInit {
     this.publicJwk = keys.publicJwk;
   }
 
-  issuer() {
-    return this.config.get<string>('OIDC_ISSUER') ?? 'http://127.0.0.1:5201/middle/api/oidc';
+  publicOrigin() {
+    return (this.config.get<string>('PUBLIC_ORIGIN') ?? 'http://127.0.0.1:5201').replace(/\/$/, '');
+  }
+
+  publicApiPrefix(req?: RequestLike): '/console/api' | '/middle/api' {
+    const raw = req?.headers?.[PUBLIC_API_HEADER];
+    const header = Array.isArray(raw) ? raw[0] : raw;
+    if (header === '/middle/api' || header === '/console/api') return header;
+    const fromEnv = this.config.get<string>('OIDC_ISSUER') ?? DEFAULT_ISSUER;
+    try {
+      const path = new URL(fromEnv).pathname.replace(/\/oidc\/?$/, '');
+      if (path === '/middle/api' || path === '/console/api') return path;
+    } catch {
+      /* fall through */
+    }
+    return '/console/api';
+  }
+
+  issuer(req?: RequestLike) {
+    return `${this.publicOrigin()}${this.publicApiPrefix(req)}/oidc`;
+  }
+
+  authorizeUrl(req: RequestLike) {
+    const original = req.originalUrl || '/api/oidc/authorize';
+    const query = original.includes('?') ? original.slice(original.indexOf('?')) : '';
+    return `${this.issuer(req)}/authorize${query}`;
   }
 
   clientId() {
     return this.config.get<string>('OIDC_CLIENT_ID') ?? CLIENT_ID;
   }
 
-  discovery() {
-    const iss = this.issuer();
+  discovery(req?: RequestLike) {
+    const iss = this.issuer(req);
     return {
       issuer: iss,
       authorization_endpoint: `${iss}/authorize`,
@@ -79,6 +110,7 @@ export class OidcService implements OnModuleInit {
     clientId: string;
     redirectUri: string;
     codeChallenge: string;
+    issuer: string;
   }) {
     const code = randomBytes(24).toString('hex');
     saveCode(code, {
@@ -87,18 +119,22 @@ export class OidcService implements OnModuleInit {
       clientId: params.clientId,
       redirectUri: params.redirectUri,
       codeChallenge: params.codeChallenge,
+      issuer: params.issuer,
       exp: Date.now() + 5 * 60 * 1000,
     });
     return code;
   }
 
-  async exchange(input: {
-    grant_type?: string;
-    code?: string;
-    redirect_uri?: string;
-    client_id?: string;
-    code_verifier?: string;
-  }) {
+  async exchange(
+    input: {
+      grant_type?: string;
+      code?: string;
+      redirect_uri?: string;
+      client_id?: string;
+      code_verifier?: string;
+    },
+    req?: RequestLike,
+  ) {
     if (input.grant_type !== 'authorization_code') throw new UnauthorizedException('unsupported_grant');
     if (!input.code || !input.redirect_uri || !input.client_id || !input.code_verifier) {
       throw new UnauthorizedException('invalid_request');
@@ -121,9 +157,10 @@ export class OidcService implements OnModuleInit {
       preferred_username: user.phone,
       phone_number: user.phone,
       email: user.email ?? undefined,
+      is_platform_admin: user.isPlatformAdmin,
     })
       .setProtectedHeader({ alg: 'RS256', kid: OIDC_KID })
-      .setIssuer(this.issuer())
+      .setIssuer(row.issuer || this.issuer(req))
       .setAudience(this.clientId())
       .setSubject(user.id)
       .setIssuedAt(now)
@@ -147,6 +184,7 @@ export class OidcService implements OnModuleInit {
       preferred_username: user.phone,
       phone_number: user.phone,
       email: user.email ?? undefined,
+      is_platform_admin: user.isPlatformAdmin,
     };
   }
 }

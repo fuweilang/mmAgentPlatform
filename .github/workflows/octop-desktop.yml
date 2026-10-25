@@ -4,9 +4,9 @@ name: Octop Desktop Package
 # 用法：Actions → Octop Desktop Package → Run workflow
 #   platforms: darwin-arm64,darwin-amd64,windows-amd64
 # 产物在 run 的 Artifacts，改名后传到宝塔 /www/mammoth/downloads/：
-#   Octop-desktop-darwin-arm64-*.dmg  → mammoth-agent-mac-arm64.dmg
-#   Octop-desktop-darwin-amd64-*.dmg  → mammoth-agent-mac-x64.dmg
-#   Octop-desktop-windows-amd64-*.exe → mammoth-agent-win.exe
+#   猛犸智能体-desktop-darwin-arm64-*.dmg  → mammoth-agent-mac-arm64.dmg
+#   猛犸智能体-desktop-darwin-amd64-*.dmg  → mammoth-agent-mac-x64.dmg
+#   猛犸智能体-desktop-windows-amd64-*.exe → mammoth-agent-win.exe
 # 不要 push 到 TencentCloud/Octop。
 
 on:
@@ -287,7 +287,7 @@ jobs:
       - name: Upload bundled desktop package
         uses: actions/upload-artifact@v7
         with:
-          path: Octop/desktop/src/bin/Octop-desktop-${{ matrix.plat }}-${{ env.OCTOP_VERSION }}.*
+          path: Octop/desktop/src/bin/*-desktop-${{ matrix.plat }}-${{ env.OCTOP_VERSION }}.*
           archive: false
           if-no-files-found: error
           retention-days: 14

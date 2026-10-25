@@ -1,5 +1,5 @@
 import type { AccessScope, KbStatus } from '@mammoth/shared';
-import { http } from './http';
+import { apiUrl, http } from './http';
 
 export type WorkbenchSummary = {
   tenantName: string;
@@ -91,6 +91,11 @@ export const knowledgeApi = {
   remove: (id: string) => http<{ ok: boolean }>(`/api/kb/documents/${id}`, { method: 'DELETE' }),
   search: (q: string) => http<{ tenantId: string; hits: KbHit[] }>(`/api/kb/search?q=${encodeURIComponent(q)}`),
 };
+
+/** 知识库文件下载地址：浏览器新开窗口直接下载，前缀改写与 http() 同源（apiUrl）。 */
+export function kbDownloadUrl(id: string) {
+  return apiUrl(`/api/kb/documents/${id}/file`);
+}
 
 export type KbHit = {
   documentId: string;

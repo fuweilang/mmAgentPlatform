@@ -32,6 +32,7 @@ export default function AgentNotReadyScreen({
   const bootstrapStarted = useRef(false);
 
   /**
+   * MAMMOTH-PATCH: 零专家冷启动——无 agent 时自动创建默认专家(general-assistant)并直接进会话，替换上游"去专家页挑选"空态 C类-功能侵入
    * Zero-expert entry: create the bundled default expert (general-assistant)
    * with template defaults, then jump straight into its chat. Users who never
    * picked an expert should not have to browse the expert list first.

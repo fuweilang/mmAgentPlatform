@@ -1196,6 +1196,7 @@ export function setSessionTeamRoom(sessionId: string, isTeam: boolean): void {
  * misses the next question and glues the next answer onto the previous
  * bubble. Team/bridge rooms also need the bind for member flush.
  */
+// MAMMOTH-PATCH: keepRoomSocket 恒 true——多端同线程订阅不再被 host turn.ended 断开（多标签页同步所需） C类-功能侵入
 function keepRoomSocket(
   _state: SessionStreamState,
   _agentId?: string | null,
@@ -1517,6 +1518,7 @@ export function ingestHarnessChunk(
 ): void {
   const state = getOrCreate(sessionId);
   rememberRoomAgent(state, roomAgentId);
+  // MAMMOTH-PATCH: 先消费远端 user 回显帧（他端发出的提问），再走上游 harness 分块 C类-功能侵入
   // Passive record panes must show questions sent from another tab too.
   if (applyRemoteUserFrame(state, chunk as unknown as Record<string, unknown>)) {
     notify(state);
@@ -1738,6 +1740,7 @@ function appendStreamingToken(
     ];
     return;
   }
+  // MAMMOTH-PATCH: 已完成气泡视为上一轮——迟到 token 强制开新气泡，防止他端把第二轮粘到第一轮答案上 C类-功能侵入
   if (target && target.status === "done" && !state.isTeamRoom) {
     // A finished 1:1 bubble is a previous turn. Appending here is what
     // makes another tab glue "第二轮" onto "第一轮". Team rooms still
@@ -2657,6 +2660,7 @@ export async function attachThread(
         }
 
         if (data.type === "pong") return;
+        // MAMMOTH-PATCH: 订阅态 WS 帧先过远端 user 回显（attachThread 的只听 socket 也要显示他端提问） C类-功能侵入
         if (applyRemoteUserFrame(state, data)) {
           notify(state);
           return;
@@ -2811,6 +2815,7 @@ async function sendTurnWebSocket(
   const state = getOrCreate(sessionId);
   const resolvedThreadId = (threadId || sessionId).trim();
 
+  // MAMMOTH-PATCH: 发送前给乐观用户气泡打 clientPendingId 并随 payload.client_pending_id 上行，用于识别/丢弃服务端对本轮的回显 C类-功能侵入
   // Stamp the optimistic user bubble so the server's thread-wide echo of this
   // turn can be recognised (and dropped) here instead of duplicating the row.
   const clientPendingId = generateId();
@@ -2910,6 +2915,7 @@ async function sendTurnWebSocket(
         if (!data || typeof data !== "object") return;
         if (!frameBelongsToThread(data, live.threadId)) return;
         if ((data as { type?: string }).type === "turn_status") return;
+        // MAMMOTH-PATCH: 发送态 WS 收到回显帧直接消费（本端已渲染乐观气泡，靠 client_pending_id 丢弃） C类-功能侵入
         if (
           applyRemoteUserFrame(state, data as unknown as Record<string, unknown>)
         ) {
@@ -3392,6 +3398,7 @@ function attachmentsFromSteerFrame(raw: unknown): ChatAttachment[] | undefined {
   return attachments.length > 0 ? attachments : undefined;
 }
 
+// MAMMOTH-PATCH: 新增远端 user 回显帧处理（他端提问 fan-out、client_pending_id/message_id 去重、按流式位置插入） C类-功能侵入
 /**
  * Apply the server's thread-wide ``type:"user"`` echo frame.
  *
@@ -3649,6 +3656,7 @@ function dropOptimisticSteerMessages(
   if (next.length !== state.messages.length) state.messages = next;
 }
 
+// MAMMOTH-PATCH: steer 乐观气泡不再删除而是去掉 steerPending 保留可见行（避免规范帧未到时留白） C类-功能侵入
 /** Keep the visible user row; it is no longer a withdrawable queued steer. */
 function clearSteerPendingFlags(state: SessionStreamState): void {
   if (!state.messages.some((message) => message.steerPending)) return;

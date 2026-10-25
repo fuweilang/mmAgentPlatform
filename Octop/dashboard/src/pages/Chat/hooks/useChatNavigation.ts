@@ -26,6 +26,7 @@ interface UseChatNavigationParams {
   fetchSessions: (activeId?: string) => Promise<Session[]>;
   refreshAgents: (opts?: { silent?: boolean }) => Promise<void>;
   /** False until GET /api/agents has settled. */
+  // MAMMOTH-PATCH: agentsReady/routeAgentMissing/fallbackAgentId 三个参数门控既有导航副作用，并新增 URL agent 失效后的回退导航 C类-功能侵入
   agentsReady?: boolean;
   /** URL agent id is not in the loaded list. */
   routeAgentMissing?: boolean;
@@ -143,6 +144,7 @@ export function useChatNavigation({
   const initialNavDone = useRef<string | null>(null);
   const chatUrlStateRef = useRef<{ agentId?: string; threadId?: string }>({});
 
+  // MAMMOTH-PATCH: URL 指向的 agent 已被删时 replace 到兜底 agent 或 /chat，避免死链白屏 C类-功能侵入
   useEffect(() => {
     if (!agentsReady || !routeAgentId || !routeAgentMissing) return;
     navigate(fallbackAgentId ? `/chat/${fallbackAgentId}` : "/chat", {

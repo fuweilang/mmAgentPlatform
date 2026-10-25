@@ -74,6 +74,7 @@ def _claim_display_name(claims: dict[str, Any]) -> str | None:
     return name.strip() if isinstance(name, str) and name.strip() else None
 
 
+# MAMMOTH-PATCH: 解析中台 OIDC 的 is_platform_admin claim，用于 SSO 首登/已有用户提权 B类-SSO中台胶水
 def _claim_wants_admin(claims: dict[str, Any]) -> bool:
     raw = claims.get("is_platform_admin")
     return raw is True or raw == 1 or raw == "true" or raw == "1"
@@ -136,6 +137,7 @@ class UserManager:
         permissions: builtins.list[str] | None = None,
         email: str | None = None,
         role_name: str | None = None,
+        # MAMMOTH-PATCH: 手机号/企业名列（022 迁移 + 唯一性校验），中台账号打通 B类-中台胶水
         phone: str | None = None,
         enterprise_name: str | None = None,
     ) -> User:
@@ -271,6 +273,7 @@ class UserManager:
             display_name = _claim_display_name(claims)
 
             if row is None:
+                # MAMMOTH-PATCH: SSO 首登按 phone_number/preferred_username 反查已有用户并补绑 sso_identity（中台影子用户合并） B类-SSO中台胶水
                 preferred = claims.get("preferred_username")
                 phone_claim = claims.get("phone_number")
                 lookup_phone = (
@@ -305,6 +308,7 @@ class UserManager:
                     seeded_user_role_assignment,
                 )
 
+                # MAMMOTH-PATCH: is_platform_admin claim 时首登直接落 admin 角色 B类-SSO中台胶水
                 assignment = (
                     role_assignment_for(self._services.db, ADMIN_USER_ROLE_ID)
                     if _claim_wants_admin(claims)
@@ -374,6 +378,7 @@ class UserManager:
             )
             role_id = str(row.role)
             permissions = list(row.permissions)
+            # MAMMOTH-PATCH: 已存在用户每次登录校验 is_platform_admin，缺则提权为 admin B类-SSO中台胶水
             if _claim_wants_admin(claims) and role_id != Role.ADMIN:
                 from octop.infra.db.repos.user_roles import ADMIN_USER_ROLE_ID
 

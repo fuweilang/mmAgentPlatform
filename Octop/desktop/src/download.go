@@ -245,6 +245,12 @@ func bundledPortableZip() (string, error) {
 	}
 	dir := filepath.Dir(exe)
 	plat := greenPlat()
+	// Package-name contract: "Octop-<plat>.zip" (legacy) and
+	// "Octop-portable-<plat>-*.zip" are the exact names produced by the
+	// portable packaging scripts (desktop/portable/_common.sh, package.sh) and
+	// by the desktop CI release assets. Brand renames must NOT touch these
+	// names — this lookup matches them verbatim to find the bundled/upgrade
+	// package next to the app binary.
 	legacy := fmt.Sprintf("Octop-%s.zip", plat)
 	searchDirs := []string{
 		dir,
@@ -349,6 +355,9 @@ func unzipGreenFiles(files []*zip.File, dest string) error {
 }
 
 func waitHealth(locale Locale, base string, timeout time.Duration) error {
+	// Lenient on purpose (unlike octopAlreadyRunning in process.go): any HTTP
+	// response < 500 counts as "up" here — while waiting for boot, a healthy
+	// payload is not required, only proof that the server is answering.
 	deadline := time.Now().Add(timeout)
 	url := strings.TrimRight(base, "/") + "/api/health"
 	var lastErr error

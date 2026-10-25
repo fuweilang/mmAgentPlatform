@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateAdminUserDto {
   @IsOptional()
@@ -11,7 +11,7 @@ export class UpdateAdminUserDto {
   isPlatformAdmin?: boolean;
 
   @IsOptional()
-  @IsString()
+  @IsIn(['active', 'inactive'])
   status?: string;
 
   @IsOptional()

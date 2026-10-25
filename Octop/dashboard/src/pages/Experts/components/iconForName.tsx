@@ -192,6 +192,7 @@ export function normalizeAgentScopedApiUrl(url: string): string {
   }
 }
 
+// MAMMOTH-PATCH: /experts/ 头像 URL 前缀 BASE_URL（经网关部署时仪表盘不在根路径），连带 resolveExpertAvatarUrl 的 /experts/ 分支 C类-功能侵入
 function withDashboardBase(path: string): string {
   const base = String(import.meta.env.BASE_URL || "/").replace(/\/$/, "");
   if (!base) return path;

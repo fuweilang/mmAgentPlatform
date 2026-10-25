@@ -1695,6 +1695,7 @@ export default function UsersListPanel() {
       }
       setPendingUserAvatar(null);
       setPendingUserIcon(null);
+      // MAMMOTH-PATCH: 建用户时同步调中台 /console/api/auth/provision 开通控制台账号（手机号/企业名打通；应收敛进 mammothConsole.ts） B类-SSO中台胶水
       try {
         const provisionRes = await fetch("/console/api/auth/provision", {
           method: "POST",
@@ -2374,6 +2375,7 @@ export default function UsersListPanel() {
               }}
               onRemove={() => setPendingUserAvatar(null)}
             />
+            {/* MAMMOTH-PATCH: 手机号/企业名表单字段（022_user_phone 迁移的 UI 面，含 /^1\d{10}$/ 校验） B类-中台胶水 */}
             <Form.Item
               label={t("adminUsers.formPhone")}
               name="phone"

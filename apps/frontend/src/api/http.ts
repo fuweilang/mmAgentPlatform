@@ -6,7 +6,8 @@ export class ApiError extends Error {
   }
 }
 
-function apiUrl(path: string) {
+/** 中台 API 前缀改写：`/api/*` → 网关 `/console/api/*`。http() 与 kbDownloadUrl() 共用。 */
+export function apiUrl(path: string) {
   if (path.startsWith('/api/')) {
     return `/console/api/${path.slice(5)}`;
   }
@@ -25,7 +26,13 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
     && !url.endsWith('/auth/login')
     && !url.includes('/auth/browser-sso-consume')
   ) {
-    if (!location.pathname.startsWith('/login')) location.href = '/login';
+    // login / sso-consume 页面自身不跳转，让调用方处理 401。
+    if (!location.pathname.startsWith('/login')) {
+      const next = encodeURIComponent(location.pathname + location.search);
+      location.href = `/login?next=${next}`;
+      // 已经在跳登录了：返回不落地的 Promise，避免调用方 toast 报错造成双重提示。
+      return new Promise<T>(() => {});
+    }
     throw new ApiError(401, '未登录');
   }
   const text = await res.text();
@@ -33,10 +40,22 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
   if (text && !contentType.includes('application/json')) {
     throw new ApiError(res.status || 502, "接口未就绪：返回的不是 JSON。请确认中台 API 和网关已重启。");
   }
-  const data = text ? JSON.parse(text) : null;
+  let data: unknown = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new ApiError(res.status || 502, '接口返回的数据无法解析：请确认中台 API 已正常启动。');
+    }
+  }
   if (!res.ok) {
-    const msg = data?.message;
-    throw new ApiError(res.status, Array.isArray(msg) ? msg.join('；') : msg || '请求失败');
+    const msg = (data as { message?: unknown })?.message;
+    const msgText = Array.isArray(msg)
+      ? msg.join('；')
+      : typeof msg === 'string' && msg
+        ? msg
+        : '请求失败';
+    throw new ApiError(res.status, msgText);
   }
   return data as T;
 }

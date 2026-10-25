@@ -14,6 +14,24 @@ function lanIPv4(): string[] {
   return ips;
 }
 
+/** 缺省 CORS 白名单：本地开发的统一入口和两个前端 dev 端口（经网关/代理访问时本就同源）。 */
+const DEFAULT_CORS_ORIGINS = [
+  'http://localhost:5201',
+  'http://127.0.0.1:5201',
+  'http://localhost:5202',
+  'http://127.0.0.1:5202',
+  'http://localhost:5203',
+  'http://127.0.0.1:5203',
+];
+
+function corsOrigins(): string[] {
+  const list = (process.env.ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return list.length > 0 ? list : DEFAULT_CORS_ORIGINS;
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
@@ -21,7 +39,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
   );
-  app.enableCors({ origin: true, credentials: true });
+  app.enableCors({ origin: corsOrigins(), credentials: true });
 
   const port = Number(process.env.PORT ?? 3100);
   await app.listen(port, '0.0.0.0');

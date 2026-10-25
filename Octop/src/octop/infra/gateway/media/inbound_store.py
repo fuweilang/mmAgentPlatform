@@ -391,6 +391,7 @@ def build_timestamped_inbound_name(filename: str, *, now: int | None = None) -> 
     return f"{ts}_{display}"
 
 
+# MAMMOTH-PATCH: 文件夹上传保留目录树——新增相对路径清洗/拆分助手与深度长度上限 C类-功能侵入
 MAX_INBOUND_SUBDIR_DEPTH = 12
 MAX_INBOUND_SUBDIR_LEN = 400
 
@@ -465,6 +466,7 @@ async def _unique_inbound_path(
     raise OctopError(ErrorCode.INTERNAL_ERROR, f"cannot allocate unique path for {stored_name!r}")
 
 
+# MAMMOTH-PATCH: subdir 分支——文件夹上传保留原始叶子名与子目录（不加时间戳前缀） C类-功能侵入
 async def write_inbound(
     workspace: BackendWorkspace,
     data: bytes,

@@ -92,6 +92,7 @@ import {
   Users,
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/auth';
+import { clearOctopSession } from '../utils/session';
 import { useResponsiveSidebar } from './useResponsiveSidebar';
 import ClientDownloadLink from '../components/ClientDownloadLink.vue';
 import TenantSwitcher from '../components/TenantSwitcher.vue';
@@ -142,10 +143,11 @@ function goSettings() {
 }
 
 async function onLogout() {
+  // 先清 Octop 侧会话：clearOctopSession 走裸 fetch 不经 request()，Cookie 失效也不会被挂起；
+  // 再清中台会话（auth.logout 内部已先同步 clear，不依赖请求落地），最后回登录页。
+  await clearOctopSession();
   await auth.logout();
-  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
-  localStorage.removeItem('auth_token');
-  sessionStorage.removeItem('auth_token');
+  // 跳转由 http.ts 401 分支兜底，此处 await 可能不落地，勿在其后追加逻辑。
   window.location.href = '/login';
 }
 </script>

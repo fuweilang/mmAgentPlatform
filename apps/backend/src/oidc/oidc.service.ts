@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'crypto';
 import { Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SignJWT } from 'jose';
-import type { JWK } from 'jose';
+import { SignJWT, createLocalJWKSet, jwtVerify } from 'jose';
+import type { JWK, JWTPayload } from 'jose';
 import { User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { loadOidcKeys, OIDC_KID } from './oidc.keys';
@@ -85,6 +85,12 @@ export class OidcService implements OnModuleInit {
 
   jwks() {
     return { keys: [this.publicJwk] };
+  }
+
+  /** 用本地公钥验签 id_token（access_token 与其同值）。验签失败会抛错，由调用方转 401。 */
+  async verifyIdToken(token: string): Promise<JWTPayload> {
+    const { payload } = await jwtVerify(token, createLocalJWKSet({ keys: [this.publicJwk] }));
+    return payload;
   }
 
   isAllowedRedirect(uri: string) {
@@ -177,7 +183,8 @@ export class OidcService implements OnModuleInit {
 
   async userinfo(sub: string) {
     const user = await this.prisma.user.findUnique({ where: { id: sub } });
-    if (!user) throw new UnauthorizedException('invalid_token');
+    // 被停用者 5 分钟 token 窗口内不应还能取 userinfo（与 userFromCookie/JwtGuard 的检查对齐）。
+    if (!user || user.status !== 'active') throw new UnauthorizedException('invalid_token');
     return {
       sub: user.id,
       name: user.name,

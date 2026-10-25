@@ -54,6 +54,7 @@ VISION_JPEG_QUALITY = 85
 # ``image/tiff``, ``image/heic``, ``image/svg+xml``, ...) is rejected with
 # "You have uploaded an unsupported image" — and because conversation history
 # is replayed on every turn, one bad block poisons the whole thread.
+# MAMMOTH-PATCH: 视觉模型 MIME 白名单（OpenAI 兼容端点仅收 png/jpeg/gif/webp，历史回放会因坏块毒化整线程） C类-功能侵入
 VISION_SUPPORTED_MIMES = frozenset({"image/png", "image/jpeg", "image/gif", "image/webp"})
 
 
@@ -403,6 +404,7 @@ def _reencode_image_to_fit(data: bytes) -> tuple[bytes, str] | None:
     return None
 
 
+# MAMMOTH-PATCH: 新增 PNG 转码兜底与统一入口 normalize_vision_payload（嗅探魔数优先于声明 MIME） C类-功能侵入
 def _transcode_to_png(data: bytes) -> tuple[bytes, str] | None:
     """Decode *data* with Pillow and re-encode as PNG (the provider-safe fallback)."""
     try:
@@ -510,6 +512,7 @@ async def materialize_image_part(
             if reencoded is not None:
                 return make_image_url_block(base64.b64encode(reencoded[0]).decode(), reencoded[1])
             return _image_as_path_hint(part, workspace=workspace, locale=locale)
+        # MAMMOTH-PATCH: 内联图经 normalize_vision_payload 规范化（含不支持格式降级 path hint） C类-功能侵入
         normalized = normalize_vision_payload(raw, mime)
         if normalized is None:
             logger.info("vision inline image: unsupported format %r", mime)
@@ -538,6 +541,7 @@ async def materialize_image_part(
                     )
                 return _image_as_path_hint(part, workspace=workspace, locale=locale)
             mime = content_type or part.mime_type or "image/png"
+            # MAMMOTH-PATCH: URL 下载图同样经 normalize_vision_payload 规范化 C类-功能侵入
             normalized = normalize_vision_payload(raw_bytes, mime)
             if normalized is None:
                 return _image_as_path_hint(part, workspace=workspace, locale=locale)
@@ -628,6 +632,7 @@ def _finalize_rematerialized_image(
             locale=locale,
         )
     mime = mime_type or mimetypes.guess_type(path)[0] or "image/png"
+    # MAMMOTH-PATCH: 重物化图（磁盘读回）同样经 normalize_vision_payload 规范化 C类-功能侵入
     normalized = normalize_vision_payload(data, mime)
     if normalized is None:
         logger.info("vision rematerialize %s: unsupported image format %r", path, mime)

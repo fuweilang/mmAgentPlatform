@@ -916,6 +916,7 @@ export function useChat(
       const threadIdForApi =
         storeKey ||
         (stableSessionId !== "__empty__" ? stableSessionId : undefined);
+      // MAMMOTH-PATCH: sendTurn 前经 prepareMammothChatTurn（中台配额拦截/出站文本改写，mammothConsole.ts） B类-SSO中台胶水
       void (async () => {
         let outboundText = text;
         try {

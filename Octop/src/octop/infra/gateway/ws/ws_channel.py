@@ -166,6 +166,7 @@ class WebSocketChannel(BaseChannel):
         failed = False
         stream = None
         try:
+            # MAMMOTH-PATCH: turn.started 前向线程全部订阅者回显 user 帧（多标签页同步的发送端） C类-功能侵入
             # Echo the accepted user turn to every subscriber of this thread so
             # a second browser tab (or a reconnected client) sees the question,
             # not just the assistant stream. The sending tab drops the echo via
@@ -418,6 +419,7 @@ async def _push_discarded(hub: WebSocketHub, thread_id: str, bundle: DiscardBund
         logger.exception("websocket failed to deliver steer.discarded thread=%s", thread_id)
 
 
+# MAMMOTH-PATCH: 新增 _inbound_text/_user_echo_frame——把接受的 user turn 组装成 type:"user" 回显帧（含 client_pending_id/附件透传） C类-功能侵入
 def _inbound_text(content: Any) -> str:
     """Plain text of an inbound turn (``str`` or a list of ContentParts)."""
     if isinstance(content, str):

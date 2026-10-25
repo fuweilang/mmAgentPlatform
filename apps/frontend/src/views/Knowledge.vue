@@ -178,7 +178,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadFile, type UploadUserFile } from 'element-plus';
 import { Search } from 'lucide-vue-next';
 import { AccessScopeLabel, KbStatusLabel, type AccessScope, type KbStatus } from '@mammoth/shared';
-import { knowledgeApi, type KbDocumentRow, type KbFolderRow } from '../api/console';
+import { knowledgeApi, kbDownloadUrl, type KbDocumentRow, type KbFolderRow } from '../api/console';
 import { tenantApi, type MemberRow } from '../api/tenants';
 import { useAuthStore } from '../stores/auth';
 import { formatBytes } from '../utils/format';
@@ -460,7 +460,7 @@ async function onSaveAccess() {
 }
 
 function onDownload(row: KbDocumentRow) {
-  window.open(`/console/api/kb/documents/${row.id}/file`, '_blank', 'noopener');
+  window.open(kbDownloadUrl(row.id), '_blank', 'noopener');
 }
 
 async function onRemove(row: KbDocumentRow) {

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Header, Post, Query, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { decodeJwt } from 'jose';
+import type { JWTPayload } from 'jose';
 import { Request, Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../auth/jwt.guard';
@@ -81,7 +81,13 @@ export class OidcController {
     const header = req.headers.authorization;
     const token = header?.startsWith('Bearer ') ? header.slice(7) : '';
     if (!token) throw new UnauthorizedException('invalid_token');
-    const claims = decodeJwt(token);
+    // 必须先验签再取 claims：decodeJwt 不验签，任何人都能伪造 token 冒充任意用户。
+    let claims: JWTPayload;
+    try {
+      claims = await this.oidc.verifyIdToken(token);
+    } catch {
+      throw new UnauthorizedException('invalid_token');
+    }
     if (typeof claims.sub !== 'string') throw new UnauthorizedException('invalid_token');
     return this.oidc.userinfo(claims.sub);
   }
@@ -92,6 +98,8 @@ export class OidcController {
     if (!token) return null;
     try {
       const payload = await this.jwt.verifyAsync<JwtPayload>(token);
+      // browser-sso 票据只用于换正式会话，不能当登录态直接用（与 JwtGuard 的检查一致）。
+      if (payload.purpose === 'browser-sso') return null;
       const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
       if (!user || user.status !== 'active') return null;
       return user;

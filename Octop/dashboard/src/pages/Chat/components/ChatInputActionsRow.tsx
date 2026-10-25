@@ -867,6 +867,7 @@ export default function ChatInputActionsRow({
           </span>
         </button>
       )}
+      {/* MAMMOTH-PATCH: 上传交互重做——回形针一键上传文件，整文件夹入口移到「+ 更多工具」溢出菜单（原先 Popover 二级菜单） C类-功能侵入 */}
       {/* The paperclip uploads files in one click; a whole folder lives here so
           it stays discoverable without making every upload a two-step menu. */}
       <button
@@ -1071,6 +1072,7 @@ export default function ChatInputActionsRow({
             </button>
           </Tooltip>
         </Popover>
+        {/* MAMMOTH-PATCH: 回形针改为 onClick 直传 onFileSelect（去掉了上传 Popover 菜单层） C类-功能侵入 */}
         <Tooltip
           title={t(
             "upload.tooltip",

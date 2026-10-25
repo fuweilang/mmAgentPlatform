@@ -75,6 +75,7 @@ import { onMounted, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { canAccessConsole } from '@mammoth/shared';
 import { useAuthStore } from '../stores/auth';
+import { hasOctopToken } from '../utils/session';
 import ClientDownloadLink from '../components/ClientDownloadLink.vue';
 
 const AGENT_HOME = '/agent/chat';
@@ -128,10 +129,6 @@ onMounted(async () => {
 
 function isAgentLoginPath(pathname: string) {
   return pathname === '/agent/login' || pathname.startsWith('/agent/login/');
-}
-
-function hasOctopToken() {
-  return Boolean(localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token'));
 }
 
 async function startOctopSession() {

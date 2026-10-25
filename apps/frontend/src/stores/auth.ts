@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { SessionMe } from '@mammoth/shared';
 import { authApi } from '../api/auth';
-import { clearSessionCache, getCachedSession, getIsLogin, setSessionCache } from '../utils/session';
+import { clearOctopToken, clearSessionCache, getCachedSession, setSessionCache } from '../utils/session';
 
 export const useAuthStore = defineStore('auth', () => {
   const session = ref<SessionMe | null>(getCachedSession());
@@ -15,16 +15,11 @@ export const useAuthStore = defineStore('auth', () => {
   function clear() {
     session.value = null;
     clearSessionCache();
-    localStorage.removeItem('auth_token');
-    sessionStorage.removeItem('auth_token');
+    clearOctopToken();
   }
 
+  /** 无本地会话时向中台要当前登录态；缓存已在 store 初始化时读入（ref(getCachedSession())）。 */
   async function load() {
-    if (!getIsLogin() && !session.value) {
-      session.value = await authApi.me();
-      if (session.value) setSessionCache(session.value);
-      return;
-    }
     session.value = await authApi.me();
     if (session.value) setSessionCache(session.value);
   }
@@ -42,12 +37,10 @@ export const useAuthStore = defineStore('auth', () => {
     apply(await authApi.register(body));
   }
 
-  async function logout() {
-    try {
-      await authApi.logout();
-    } finally {
-      clear();
-    }
+  /** 退出：先同步清本地会话，再尽力通知中台（Cookie 已失效时 401 会挂起 http() 的 Promise，不能依赖它落地）。 */
+  function logout() {
+    clear();
+    return authApi.logout().catch(() => undefined);
   }
 
   async function switchTenant(tenantId: string) {
@@ -59,8 +52,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function consumeBrowserSso(ticket: string) {
-    localStorage.removeItem('auth_token');
-    sessionStorage.removeItem('auth_token');
+    clearOctopToken();
     apply(await authApi.consumeBrowserSso(ticket));
   }
 

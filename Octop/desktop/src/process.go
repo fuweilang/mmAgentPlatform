@@ -226,6 +226,10 @@ func listenProbe(host string, port int) (bool, error) {
 }
 
 func octopAlreadyRunning(base string) bool {
+	// Strict on purpose (unlike waitHealth in download.go): only a fully
+	// initialized 2xx + {ok, users_loaded, agents_running} payload counts as
+	// "already running" — this decides single-instance takeover, so a
+	// half-started or foreign service on the port must not be mistaken for us.
 	client := &http.Client{Timeout: 800 * time.Millisecond}
 	url := strings.TrimRight(base, "/") + "/api/health"
 	resp, err := client.Get(url)

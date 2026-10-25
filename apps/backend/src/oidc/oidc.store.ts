@@ -11,6 +11,11 @@ export type AuthCode = {
 const codes = new Map<string, AuthCode>();
 
 export function saveCode(code: string, data: AuthCode) {
+  // 顺带清扫过期 code，避免长期运行时 Map 无限增长（授权码本就 5 分钟有效）。
+  const now = Date.now();
+  for (const [key, row] of codes) {
+    if (row.exp < now) codes.delete(key);
+  }
   codes.set(code, data);
 }
 

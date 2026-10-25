@@ -6,6 +6,24 @@ import (
 	"testing"
 )
 
+// readShellSources returns the concatenated shell sources the asset server
+// ships (index.html structure + index.css styles + index.js module). The HTML
+// used to inline the CSS/JS; tests assert against the whole shipped shell, so
+// they read all three files.
+func readShellSources(t *testing.T) string {
+	t.Helper()
+	var b strings.Builder
+	for _, name := range []string{"assets/index.html", "assets/index.css", "assets/index.js"} {
+		data, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b.Write(data)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
 func TestDesktopDragRegionClassMatchesDashboard(t *testing.T) {
 	if desktopDragRegionClass != "octop-desktop-drag" {
 		t.Fatalf("drag region class is %q, dashboard CSS will not apply", desktopDragRegionClass)
@@ -31,11 +49,7 @@ func TestDragOverlayJSStartsWailsDragWithoutCapturingOverlay(t *testing.T) {
 }
 
 func TestSplashHTMLHasFramelessWindowControls(t *testing.T) {
-	html, err := os.ReadFile("assets/index.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := string(html)
+	body := readShellSources(t)
 	for _, needle := range []string{
 		`id="window-chrome"`,
 		`octop-desktop-drag`,
@@ -56,11 +70,7 @@ func TestSplashHTMLHasFramelessWindowControls(t *testing.T) {
 }
 
 func TestSplashLoadingCardWrapsProgressAndStatus(t *testing.T) {
-	html, err := os.ReadFile("assets/index.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := string(html)
+	body := readShellSources(t)
 	for _, needle := range []string{
 		`class="loading-card"`,
 		`class="loading-footer"`,
@@ -107,11 +117,7 @@ func cssRule(html, selector string) string {
 }
 
 func TestSettingsHTMLFitsWithoutScrollbar(t *testing.T) {
-	html, err := os.ReadFile("assets/index.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := string(html)
+	body := readShellSources(t)
 	for _, needle := range []string{
 		`dataset.mode = "settings"`,
 		`html[data-mode="settings"]`,

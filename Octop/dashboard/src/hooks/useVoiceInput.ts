@@ -136,6 +136,7 @@ function pickRecorderMimeType(): string {
   return "";
 }
 
+// MAMMOTH-PATCH: 一次性转写改为持续听写模式（连续识别+静音自动停），删除上游 transcribeWithBrowser C类-功能侵入
 function spokenFromResults(
   results: BrowserSpeechRecognitionResultEvent["results"],
 ): string {
@@ -205,6 +206,7 @@ export function useVoiceInput(options: VoiceInputOptions) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const captureRef = useRef<RealtimeCapture | null>(null);
+  // MAMMOTH-PATCH: 浏览器听写状态 refs（识别实例/活跃标志/静音计时器） C类-功能侵入
   const browserRecRef = useRef<BrowserSpeechRecognition | null>(null);
   const dictationActiveRef = useRef(false);
   const silenceTimerRef = useRef<number>(0);
@@ -285,6 +287,7 @@ export function useVoiceInput(options: VoiceInputOptions) {
     setRecording(true);
   }, [finishRealtime, language, t]);
 
+  // MAMMOTH-PATCH: 听写生命周期（启动/停止/静音超时/断线自动重启） C类-功能侵入
   const clearSilenceTimer = useCallback(() => {
     if (silenceTimerRef.current) {
       window.clearTimeout(silenceTimerRef.current);
@@ -373,6 +376,7 @@ export function useVoiceInput(options: VoiceInputOptions) {
     capture.client.end();
   }, []);
 
+  // MAMMOTH-PATCH: 停止时若处于听写模式先走 stopBrowserDictation C类-功能侵入
   const stopRecording = useCallback(async () => {
     pendingStopRef.current = true;
     if (browserRecRef.current || dictationActiveRef.current) {
@@ -446,6 +450,7 @@ export function useVoiceInput(options: VoiceInputOptions) {
       return;
     }
 
+    // MAMMOTH-PATCH: 浏览器 STT 分支从一次性转写改为 startBrowserDictation 持续听写（点击切换） C类-功能侵入
     if ((active?.stt ?? "browser") === "browser" && browserSttAvailable()) {
       try {
         startBrowserDictation();

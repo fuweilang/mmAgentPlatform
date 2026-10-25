@@ -157,6 +157,21 @@ export class AdminService {
     const existing = await this.prisma.user.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('用户不存在');
 
+    const demoting = dto.isPlatformAdmin === false;
+    const deactivating = dto.status !== undefined && dto.status !== 'active';
+    // 防自锁：把自己降级/停用后就没有人能再进总后台管理用户。
+    if (actor.id === id && demoting) throw new BadRequestException('不能取消自己的平台管理员身份');
+    if (actor.id === id && deactivating) throw new BadRequestException('不能停用自己');
+    // 防锁死：扣掉目标后仍要有 ≥1 名可用平台管理员（目标本就 inactive 时计数不含它，不误伤）。
+    if (existing.isPlatformAdmin && (demoting || deactivating)) {
+      const otherActiveAdmins = await this.prisma.user.count({
+        where: { isPlatformAdmin: true, status: 'active', id: { not: id } },
+      });
+      if (otherActiveAdmins < 1) {
+        throw new BadRequestException('需保留至少一名可用状态的平台管理员，请先增配其他管理员');
+      }
+    }
+
     const data: Prisma.UserUpdateInput = {};
     if (dto.name !== undefined) data.name = dto.name.trim();
     if (dto.isPlatformAdmin !== undefined) data.isPlatformAdmin = dto.isPlatformAdmin;
